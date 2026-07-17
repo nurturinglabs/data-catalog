@@ -14,6 +14,17 @@ import theme
 
 ALL_DATABASES = "All databases"
 PAGE_SIZES = [25, 50, 100]
+# Sort options for the results table. st.dataframe's own column-header sort
+# only reorders whatever page of rows is currently loaded into it (a
+# frontend-only feature with no callback into Python), so a real
+# sort-across-all-pages needs to happen here, before pagination slicing.
+SORT_OPTIONS = {
+    "Column name": "column_name",
+    "Data type": "data_type",
+    "Has description": "documented",
+    "Approved": "approved",
+    "# Tables": "_table_count",
+}
 
 st.set_page_config(
     page_title=f"{config.APP_TITLE}",
@@ -114,9 +125,17 @@ if selected_db != ALL_DATABASES:
 if documented_only:
     filtered_df = filtered_df[filtered_df["documented"]]
 
+sort_label = st.session_state.get("sort_by", "Column name")
+sort_ascending = st.session_state.get("sort_dir", "Ascending") == "Ascending"
+sort_field = SORT_OPTIONS[sort_label]
+
+if sort_field == "_table_count":
+    filtered_df = filtered_df.assign(_table_count=filtered_df["tables"].map(len))
+
+filtered_df = filtered_df.sort_values(sort_field, ascending=sort_ascending, kind="stable")
 filtered_df = filtered_df.reset_index(drop=True)
 
-filters_signature = (search_text, selected_db, documented_only)
+filters_signature = (search_text, selected_db, documented_only, sort_label, sort_ascending)
 if st.session_state.get("_filters_signature") != filters_signature:
     st.session_state["_filters_signature"] = filters_signature
     st.session_state["page"] = 1
@@ -174,10 +193,18 @@ results_col, detail_col = st.columns([3, 2], gap="medium")
 # ─────────────────────────────────────────────────────────────────────────────
 
 with results_col:
-    header_row = st.columns([3, 1])
+    header_row = st.columns([2, 1, 1, 1])
     with header_row[0]:
         st.caption(f"{scope_label} — {view_count} column{'s' if view_count != 1 else ''}")
     with header_row[1]:
+        st.selectbox(
+            "Sort by", list(SORT_OPTIONS.keys()), key="sort_by", label_visibility="collapsed",
+        )
+    with header_row[2]:
+        st.selectbox(
+            "Direction", ["Ascending", "Descending"], key="sort_dir", label_visibility="collapsed",
+        )
+    with header_row[3]:
         page_size = st.selectbox(
             "Page size", PAGE_SIZES, index=0, key="page_size", label_visibility="collapsed",
         )
