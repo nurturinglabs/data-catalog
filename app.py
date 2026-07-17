@@ -68,7 +68,7 @@ theme.header()
 # internal layout/resize handling for that element).
 # ─────────────────────────────────────────────────────────────────────────────
 
-with st.expander("🔍  Browse databases & schemas", expanded=True):
+with st.expander("🔍  Browse databases & schemas", expanded=False):
     theme.scope_marker("rail-scope")
 
     all_active = st.session_state["selected_db"] == ALL_DATABASES
@@ -267,17 +267,17 @@ with results_col:
             st.session_state["page"] = page + 1
             st.rerun()
 
-    st.markdown("##### Export")
-    export_df = filtered_df.drop(columns=["_row_id"]).copy()
-    for list_col in ("tags", "tables", "databases", "schemas"):
-        export_df[list_col] = export_df[list_col].map(lambda lst: ", ".join(lst))
-    csv_bytes = export_df.to_csv(index=False).encode("utf-8")
-    st.download_button(
-        "⬇ Download view (CSV)",
-        data=csv_bytes,
-        file_name="data_catalog_export.csv",
-        mime="text/csv",
-    )
+    # st.markdown("##### Export")
+    # export_df = filtered_df.drop(columns=["_row_id"]).copy()
+    # for list_col in ("tags", "tables", "databases", "schemas"):
+    #     export_df[list_col] = export_df[list_col].map(lambda lst: ", ".join(lst))
+    # csv_bytes = export_df.to_csv(index=False).encode("utf-8")
+    # st.download_button(
+    #     "⬇ Download view (CSV)",
+    #     data=csv_bytes,
+    #     file_name="data_catalog_export.csv",
+    #     mime="text/csv",
+    # )
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Detail (right column)
@@ -298,31 +298,31 @@ with detail_col:
     else:
         theme.render_detail_card(detail_row)
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Catalog health panel
-# ─────────────────────────────────────────────────────────────────────────────
+# # ─────────────────────────────────────────────────────────────────────────────
+# # Catalog health panel
+# # ─────────────────────────────────────────────────────────────────────────────
 
-with st.expander("📋 Catalog health"):
-    health = data.load_health()
-    h1, h2 = st.columns(2)
-    with h1:
-        st.markdown(f"**Descriptions source:** `{health['descriptions_source']}`")
-        st.markdown(f"**Descriptions rows:** {health['descriptions_row_count']}")
-        st.markdown(f"**Headers found:** {health['descriptions_headers_found']}")
-        st.markdown(f"**Missing optional headers:** {health['descriptions_headers_missing_optional'] or 'none'}")
-        st.markdown(f"**Join grain:** `{health['join_grain']}`")
-        st.markdown(f"**Catalog spine:** `{health['catalog_spine']}`")
-    with h2:
-        st.markdown(f"**Structure source:** `{health['structure_source']}`")
-        st.markdown(f"**Structure rows:** {health['structure_row_count']}")
-        st.markdown(f"**Headers found:** {health['structure_headers_found']}")
-        st.markdown(f"**Database allowlist:** {health['database_allowlist'] or 'none (unrestricted)'}")
-        st.markdown(f"**Entries / coverage:** {health['entry_count']} / {health['coverage_pct']:.1f}%")
-        st.markdown(f"**Last refresh:** {health['last_refresh']}")
+# with st.expander("📋 Catalog health"):
+#     health = data.load_health()
+#     h1, h2 = st.columns(2)
+#     with h1:
+#         st.markdown(f"**Descriptions source:** `{health['descriptions_source']}`")
+#         st.markdown(f"**Descriptions rows:** {health['descriptions_row_count']}")
+#         st.markdown(f"**Headers found:** {health['descriptions_headers_found']}")
+#         st.markdown(f"**Missing optional headers:** {health['descriptions_headers_missing_optional'] or 'none'}")
+#         st.markdown(f"**Join grain:** `{health['join_grain']}`")
+#         st.markdown(f"**Catalog spine:** `{health['catalog_spine']}`")
+#     with h2:
+#         st.markdown(f"**Structure source:** `{health['structure_source']}`")
+#         st.markdown(f"**Structure rows:** {health['structure_row_count']}")
+#         st.markdown(f"**Headers found:** {health['structure_headers_found']}")
+#         st.markdown(f"**Database allowlist:** {health['database_allowlist'] or 'none (unrestricted)'}")
+#         st.markdown(f"**Entries / coverage:** {health['entry_count']} / {health['coverage_pct']:.1f}%")
+#         st.markdown(f"**Last refresh:** {health['last_refresh']}")
 
-    if health["structure_truncated"]:
-        st.warning(
-            f"Structure pull exceeded MAX_STRUCTURE_ROWS "
-            f"({health['max_structure_rows']}) and was truncated. "
-            f"Narrow DATABASE_ALLOWLIST or raise the cap in config.py."
-        )
+#     if health["structure_truncated"]:
+#         st.warning(
+#             f"Structure pull exceeded MAX_STRUCTURE_ROWS "
+#             f"({health['max_structure_rows']}) and was truncated. "
+#             f"Narrow DATABASE_ALLOWLIST or raise the cap in config.py."
+#         )

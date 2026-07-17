@@ -35,7 +35,7 @@ def inject_css() -> None:
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono&display=swap');
     html, body, [class*="css"] {{ font-family: 'DM Sans', sans-serif; }}
-    .block-container {{ padding-top: 0.6rem !important; padding-bottom: 2rem !important; max-width: 1500px; }}
+    .block-container {{ padding-top: 0.6rem !important; padding-bottom: 4rem !important; max-width: 1500px; }}
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}}
     div[data-testid="stVerticalBlock"] > div {{ gap: 0.5rem; }}
     code {{ font-family: 'DM Mono', monospace; }}
@@ -56,10 +56,12 @@ def inject_css() -> None:
     .catalog-header .title {{ color: {accent}; font-weight: 700; font-size: 19px; letter-spacing: -0.02em; }}
     .catalog-header .subtitle {{ color: #C7D9EE; font-size: 12px; margin-top: 1px; }}
 
-    /* Push page content below the fixed header — this is the only reserved
-       offset; .block-container above adds just a small extra breathing gap
-       so content sits right under the band. */
-    div[data-testid="stAppViewContainer"] {{ padding-top: 56px !important; }}
+    /* Push page content below the fixed header. Applied to stMain — the
+       actual scrolling element (height:100dvh; overflow:auto) — not to the
+       outer stAppViewContainer, which is position:absolute + overflow:hidden
+       and doesn't scroll at all. Padding the wrong one pushes content past
+       the bottom of a fixed-size box with no way to scroll to reach it. */
+    section[data-testid="stMain"] {{ padding-top: 56px !important; }}
 
     /* ── KPI stat tiles ──────────────────────────────────────────────── */
     .kpi-card {{
