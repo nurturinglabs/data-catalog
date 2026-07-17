@@ -188,9 +188,7 @@ with results_col:
         display_df = page_df.copy()
         display_df["Column name"] = display_df["column_name"]
         display_df["Has description"] = display_df["documented"]
-        display_df["Approved"] = display_df["tags"].map(
-            lambda tags: any(t.strip().lower() == "certified" for t in tags)
-        )
+        display_df["Approved"] = display_df["approved"]
         display_df["# Tables"] = display_df["tables"].map(len)
         display_cols = ["Column name", "Has description", "Approved", "# Tables"]
 

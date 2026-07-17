@@ -98,50 +98,53 @@ DATA_TYPES = {
     "CREDIT_AMOUNT": "NUMBER(12,2)", "POSTED_AT": "TIMESTAMP_NTZ",
 }
 
-# Curated descriptions: column_name -> (description, tags, steward).
+# Curated descriptions: column_name -> (description, tags, steward, approved).
 # Roughly two-thirds of distinct column names are documented; the rest are
-# left out on purpose so coverage < 100%.
+# left out on purpose so coverage < 100%. `approved` is intentionally NOT a
+# 1:1 mirror of the "Certified" tag — a handful of certified columns are
+# still pending approval, and a couple of non-certified ones are approved,
+# to demonstrate the two are independent signals.
 DESCRIPTIONS = {
-    "CUSTOMER_ID": ("Unique identifier for a customer account.", "Certified", "Data Governance"),
-    "FIRST_NAME": ("Given name of the individual.", "PII", "Data Governance"),
-    "LAST_NAME": ("Family name of the individual.", "PII", "Data Governance"),
-    "EMAIL": ("Primary email address on file.", "PII", "Data Governance"),
-    "PHONE": ("Primary phone number on file.", "PII", "Data Governance"),
-    "CITY": ("City component of the mailing address.", "", "Data Governance"),
-    "STATE": ("Two-letter US state code.", "", "Data Governance"),
-    "CREATED_AT": ("Timestamp the record was first created.", "", ""),
-    "ORDER_ID": ("Unique identifier for a customer order.", "Certified", "Sales Ops"),
-    "ORDER_DATE": ("Calendar date the order was placed.", "", "Sales Ops"),
-    "STATUS": ("Current lifecycle status of the record (e.g. OPEN, CLOSED).", "", "Sales Ops"),
-    "TOTAL_AMOUNT": ("Total order value in USD, including tax.", "Certified", "Sales Ops"),
-    "ORDER_ITEM_ID": ("Unique identifier for a single line item on an order.", "", "Sales Ops"),
-    "PRODUCT_ID": ("Unique identifier for a product SKU.", "Certified", "Sales Ops"),
-    "QUANTITY": ("Number of units ordered for this line item.", "", ""),
-    "UNIT_PRICE": ("List price per unit at time of order, in USD.", "", "Sales Ops"),
-    "PRODUCT_NAME": ("Human-readable product name.", "", "Sales Ops"),
-    "CATEGORY": ("Product category used for merchandising and reporting.", "", ""),
-    "SEGMENT": ("Marketing-assigned customer segment label.", "", "Marketing Analytics"),
-    "LIFETIME_VALUE": ("Modeled lifetime value of the customer, in USD.", "", "Marketing Analytics"),
-    "EMPLOYEE_ID": ("Unique identifier for an employee record.", "Certified", "People Analytics"),
-    "HIRE_DATE": ("Date the employee's current employment began.", "", "People Analytics"),
-    "DEPARTMENT_ID": ("Unique identifier for an organizational department.", "", "People Analytics"),
-    "MANAGER_ID": ("Employee ID of this employee's direct manager.", "", "People Analytics"),
-    "SSN": ("Social Security Number. Restricted access.", "PII", "People Analytics"),
-    "DEPARTMENT_NAME": ("Display name of the department.", "", "People Analytics"),
-    "PAYROLL_ID": ("Unique identifier for a payroll run line.", "", "People Analytics"),
-    "PAY_PERIOD": ("Pay period the payroll entry applies to (YYYY-MM).", "", ""),
-    "GROSS_PAY": ("Gross pay before deductions, in USD.", "", "People Analytics"),
-    "NET_PAY": ("Net pay after deductions, in USD.", "", "People Analytics"),
-    "INVOICE_ID": ("Unique identifier for a vendor invoice.", "Certified", "Finance"),
-    "CUSIP": ("Cross-system identifier linking finance records to a security or instrument.", "Certified", "Finance"),
-    "VENDOR_ID": ("Unique identifier for a vendor.", "", "Finance"),
-    "INVOICE_DATE": ("Date the invoice was issued.", "", "Finance"),
-    "AMOUNT": ("Invoice amount due, in USD.", "Certified", "Finance"),
-    "PAYMENT_ID": ("Unique identifier for a payment record.", "", "Finance"),
-    "PAYMENT_DATE": ("Date the payment was made.", "", "Finance"),
-    "AMOUNT_PAID": ("Amount paid against the invoice, in USD.", "", "Finance"),
-    "VENDOR_NAME": ("Legal name of the vendor.", "", "Finance"),
-    "TAX_ID": ("Vendor's tax identification number.", "PII", "Finance"),
+    "CUSTOMER_ID": ("Unique identifier for a customer account.", "Certified", "Data Governance", True),
+    "FIRST_NAME": ("Given name of the individual.", "PII", "Data Governance", False),
+    "LAST_NAME": ("Family name of the individual.", "PII", "Data Governance", False),
+    "EMAIL": ("Primary email address on file.", "PII", "Data Governance", False),
+    "PHONE": ("Primary phone number on file.", "PII", "Data Governance", False),
+    "CITY": ("City component of the mailing address.", "", "Data Governance", False),
+    "STATE": ("Two-letter US state code.", "", "Data Governance", False),
+    "CREATED_AT": ("Timestamp the record was first created.", "", "", False),
+    "ORDER_ID": ("Unique identifier for a customer order.", "Certified", "Sales Ops", True),
+    "ORDER_DATE": ("Calendar date the order was placed.", "", "Sales Ops", False),
+    "STATUS": ("Current lifecycle status of the record (e.g. OPEN, CLOSED).", "", "Sales Ops", False),
+    "TOTAL_AMOUNT": ("Total order value in USD, including tax.", "Certified", "Sales Ops", False),
+    "ORDER_ITEM_ID": ("Unique identifier for a single line item on an order.", "", "Sales Ops", False),
+    "PRODUCT_ID": ("Unique identifier for a product SKU.", "Certified", "Sales Ops", False),
+    "QUANTITY": ("Number of units ordered for this line item.", "", "", False),
+    "UNIT_PRICE": ("List price per unit at time of order, in USD.", "", "Sales Ops", False),
+    "PRODUCT_NAME": ("Human-readable product name.", "", "Sales Ops", False),
+    "CATEGORY": ("Product category used for merchandising and reporting.", "", "", False),
+    "SEGMENT": ("Marketing-assigned customer segment label.", "", "Marketing Analytics", False),
+    "LIFETIME_VALUE": ("Modeled lifetime value of the customer, in USD.", "", "Marketing Analytics", False),
+    "EMPLOYEE_ID": ("Unique identifier for an employee record.", "Certified", "People Analytics", True),
+    "HIRE_DATE": ("Date the employee's current employment began.", "", "People Analytics", False),
+    "DEPARTMENT_ID": ("Unique identifier for an organizational department.", "", "People Analytics", True),
+    "MANAGER_ID": ("Employee ID of this employee's direct manager.", "", "People Analytics", False),
+    "SSN": ("Social Security Number. Restricted access.", "PII", "People Analytics", False),
+    "DEPARTMENT_NAME": ("Display name of the department.", "", "People Analytics", False),
+    "PAYROLL_ID": ("Unique identifier for a payroll run line.", "", "People Analytics", False),
+    "PAY_PERIOD": ("Pay period the payroll entry applies to (YYYY-MM).", "", "", False),
+    "GROSS_PAY": ("Gross pay before deductions, in USD.", "", "People Analytics", False),
+    "NET_PAY": ("Net pay after deductions, in USD.", "", "People Analytics", False),
+    "INVOICE_ID": ("Unique identifier for a vendor invoice.", "Certified", "Finance", True),
+    "CUSIP": ("Cross-system identifier linking finance records to a security or instrument.", "Certified", "Finance", True),
+    "VENDOR_ID": ("Unique identifier for a vendor.", "", "Finance", True),
+    "INVOICE_DATE": ("Date the invoice was issued.", "", "Finance", False),
+    "AMOUNT": ("Invoice amount due, in USD.", "Certified", "Finance", False),
+    "PAYMENT_ID": ("Unique identifier for a payment record.", "", "Finance", False),
+    "PAYMENT_DATE": ("Date the payment was made.", "", "Finance", False),
+    "AMOUNT_PAID": ("Amount paid against the invoice, in USD.", "", "Finance", False),
+    "VENDOR_NAME": ("Legal name of the vendor.", "", "Finance", False),
+    "TAX_ID": ("Vendor's tax identification number.", "PII", "Finance", False),
 }
 
 
@@ -161,12 +164,13 @@ def build_structure_df() -> pd.DataFrame:
 
 def build_descriptions_df() -> pd.DataFrame:
     rows = []
-    for col, (desc, tags, steward) in sorted(DESCRIPTIONS.items()):
+    for col, (desc, tags, steward, approved) in sorted(DESCRIPTIONS.items()):
         rows.append({
             "Column Name": col,
             "Description": desc,
             "Tags": tags,
             "Steward": steward,
+            "Approved": "TRUE" if approved else "FALSE",
         })
     return pd.DataFrame(rows)
 

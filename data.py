@@ -28,6 +28,7 @@ CANONICAL_FIELDS = [
     "description",
     "tags",
     "steward",
+    "approved",
     "data_type",
     "tables",
     "databases",
@@ -36,6 +37,7 @@ CANONICAL_FIELDS = [
 ]
 
 _NULL_TOKENS = {"nan", "none", "null"}
+_TRUTHY_TOKENS = {"true", "yes", "y", "1", "approved", "x"}
 
 _last_health: dict = {}
 
@@ -62,6 +64,12 @@ def _split_list(value, delimiter: str) -> list[str]:
     if not cleaned:
         return []
     return [part.strip() for part in cleaned.split(delimiter) if part.strip()]
+
+
+def _parse_bool(value) -> bool:
+    """Truthy on common spreadsheet conventions: TRUE/YES/Y/1/APPROVED/X
+    (case-insensitive). Anything else, including blank/nan, is False."""
+    return _clean_cell(value).strip().lower() in _TRUTHY_TOKENS
 
 
 def _ci_header_lookup(columns) -> dict[str, str]:
@@ -297,6 +305,10 @@ def _canonicalize_descriptions(raw_df: pd.DataFrame, headers_found: dict) -> pd.
         out["steward"] = raw_df[headers_found["steward"]].map(_clean_cell)
     else:
         out["steward"] = ""
+    if "approved" in headers_found:
+        out["approved"] = raw_df[headers_found["approved"]].map(_parse_bool)
+    else:
+        out["approved"] = False
     # Drop rows with no column name — nothing to key a join on.
     out = out[out["column_name"] != ""]
     return out
@@ -365,6 +377,7 @@ def _join(collapsed_structure: pd.DataFrame, descriptions_df: pd.DataFrame) -> p
             "description": row["description"],
             "tags": row["tags"],
             "steward": row["steward"],
+            "approved": row["approved"],
         }
 
     records = []
@@ -373,11 +386,13 @@ def _join(collapsed_structure: pd.DataFrame, descriptions_df: pd.DataFrame) -> p
         description = match["description"] if match else ""
         tags = match["tags"] if match else []
         steward = match["steward"] if match else ""
+        approved = match["approved"] if match else False
         records.append({
             "column_name": row["column_name"],
             "description": description,
             "tags": tags,
             "steward": steward,
+            "approved": approved,
             "data_type": row["data_type"],
             "tables": row["tables"],
             "databases": row["databases"],
@@ -404,7 +419,7 @@ def _build_catalog_and_health() -> tuple[pd.DataFrame, dict]:
         raw_descriptions,
         config.DESCRIPTION_MAP,
         required_fields=["column_name", "description"],
-        optional_fields=["tags", "steward"],
+        optional_fields=["tags", "steward", "approved"],
         source_label=f"descriptions:{config.DESCRIPTIONS_SOURCE}",
     )
     descriptions_df = _canonicalize_descriptions(

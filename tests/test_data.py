@@ -177,6 +177,26 @@ def test_database_allowlist_restricts_structure(fixture_dir):
     assert all_dbs == {"DB1"}
 
 
+def test_approved_defaults_false_without_column(fixture_dir):
+    # The fixture's descriptions.xlsx has no "Approved" header at all.
+    df, _ = data._build_catalog_and_health()
+    assert not df["approved"].any()
+
+
+def test_approved_parses_truthy_tokens(fixture_dir):
+    descriptions_df = pd.DataFrame([
+        {"Column Name": "SHARED_ID", "Description": "desc", "Tags": "", "Steward": "", "Approved": "TRUE"},
+        {"Column Name": "NAME", "Description": "desc", "Tags": "", "Steward": "", "Approved": "no"},
+        {"Column Name": "MODE_COL", "Description": "desc", "Tags": "", "Steward": "", "Approved": ""},
+    ])
+    descriptions_df.to_excel(config.DESC_EXCEL_LOCAL["path"], index=False, sheet_name="Sheet1")
+
+    df, _ = data._build_catalog_and_health()
+    assert bool(_row(df, "SHARED_ID")["approved"]) is True
+    assert bool(_row(df, "NAME")["approved"]) is False
+    assert bool(_row(df, "MODE_COL")["approved"]) is False
+
+
 @pytest.fixture
 def union_config():
     """Save/restore the config knobs the union query builder reads."""

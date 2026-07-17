@@ -28,12 +28,15 @@ DESC_SNOWFLAKE_TABLE = {
 }
 
 # Canonical field -> header name in the raw description source.
-# Required: column_name, description. Optional: tags, steward.
+# Required: column_name, description. Optional: tags, steward, approved.
+# approved accepts TRUE/YES/Y/1/APPROVED/X (case-insensitive); anything else
+# (including blank) is treated as not approved.
 DESCRIPTION_MAP = {
     "column_name": "Column Name",
     "description": "Description",
     "tags": "Tags",
     "steward": "Steward",
+    "approved": "Approved",
 }
 
 TAGS_DELIMITER = ","

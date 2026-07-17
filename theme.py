@@ -251,6 +251,7 @@ def render_detail_card(row) -> None:
         description_html = '<div class="detail-empty">This column doesn\'t have a description yet.</div>'
 
     steward = html.escape(row["steward"]) if row["steward"] else "—"
+    approved_label = "✓ Approved" if row["approved"] else "Not approved"
 
     tables = row["tables"]
     n_tables = len(tables)
@@ -270,6 +271,7 @@ def render_detail_card(row) -> None:
       {description_html}
       <div class="detail-meta-strip">
         <div class="detail-meta-item"><div class="k">Steward</div><div class="v">{steward}</div></div>
+        <div class="detail-meta-item"><div class="k">Approval</div><div class="v">{approved_label}</div></div>
       </div>
       <p class="detail-section-label">Used in {n_tables} {table_word} — live from schema</p>
       <div class="detail-tables">{tables_html}</div>

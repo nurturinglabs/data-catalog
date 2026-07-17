@@ -1,8 +1,35 @@
-# Data Catalog
+# Almanac
 
 A searchable, browsable column catalog that joins a **curated description
 layer** (Excel) to a **live structure layer** (Snowflake schema), so
 descriptions are authored once and structure is always current.
+
+## Why it matters
+
+Almanac turns column knowledge into a durable, self-serve asset. Three ways it
+helps the teams that use it:
+
+- **Tribal knowledge becomes searchable and survives turnover.** "What does this
+  column mean?" is answered self-serve instead of by pinging whoever's been
+  around longest. Analysts stop interrupting engineers, new hires ramp in days
+  rather than weeks of asking around, and the team's understanding of its data
+  stops living in a few people's heads.
+
+- **Impact analysis is instant — the "if I change this, what breaks?" answer.**
+  The reverse index maps one column to every table it appears in, live from the
+  schema. Tracing usage before a change takes a second instead of a manual hunt,
+  which means safer change management and quicker answers to lineage and audit
+  questions.
+
+- **Documentation coverage is measured, so governance is visible and
+  actionable.** Because the catalog spines on live structure, it surfaces exactly
+  which columns lack descriptions — turning "we should document our data" into a
+  concrete, trackable number the data office can drive up over time. It's a
+  governance scoreboard, not just a lookup tool.
+
+The structure maintains itself (read live from the schema), so the only ongoing
+human effort is writing meanings — and that happens in Excel, where any business
+user can contribute. That low maintenance cost is what keeps the value durable.
 
 ## Architecture
 
