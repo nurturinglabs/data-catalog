@@ -80,6 +80,16 @@ with st.expander("🔍  Browse databases", expanded=False):
                 st.session_state["selected_db"] = db
                 st.rerun()
 
+    st.markdown("---")
+    st.caption(
+        "Data is cached for "
+        f"{config.CACHE_TTL_SECONDS // 60} minutes. After changing config.py "
+        "(e.g. switching STRUCTURE_SOURCE), click Refresh to see it immediately."
+    )
+    if st.button("🔄 Refresh data"):
+        data.clear_cache()
+        st.rerun()
+
 selected_db = st.session_state["selected_db"]
 documented_only = st.session_state["documented_only"]
 search_text = st.session_state.get("search_text", "")
