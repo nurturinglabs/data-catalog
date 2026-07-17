@@ -53,6 +53,7 @@ def inject_css() -> None:
     .catalog-header .brand {{ display: flex; align-items: center; gap: 12px; }}
     .catalog-header .icon {{ font-size: 22px; }}
     .catalog-header .header-logo {{ height: 32px; width: auto; max-width: 140px; object-fit: contain; }}
+    .catalog-header .header-divider {{ width: 2px; height: 28px; background: {accent}; display: inline-block; }}
     .catalog-header .title {{ color: {accent}; font-weight: 700; font-size: 19px; letter-spacing: -0.02em; }}
     .catalog-header .subtitle {{ color: #C7D9EE; font-size: 12px; margin-top: 1px; }}
 
@@ -176,6 +177,7 @@ def header() -> None:
     <div class="catalog-header">
       <div class="brand">
         {_logo_html()}
+        <span class="header-divider"></span>
         <div>
           <div class="title">{html.escape(config.APP_TITLE)}</div>
           <div class="subtitle">{html.escape(config.APP_SUBTITLE)}</div>
