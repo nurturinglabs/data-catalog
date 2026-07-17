@@ -45,7 +45,7 @@ def inject_css() -> None:
 
     /* ── Header band — fixed, full viewport width, above sidebar + content ── */
     .catalog-header {{
-        position: fixed; top: 0; left: 0; right: 0; width: 100%; height: 56px;
+        position: fixed; top: 0; left: 0; right: 0; width: 100%; height: 72px;
         z-index: 999998; background: {primary}; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         display: flex; align-items: center; justify-content: space-between;
         padding: 0 26px; box-sizing: border-box;
@@ -61,7 +61,7 @@ def inject_css() -> None:
        outer stAppViewContainer, which is position:absolute + overflow:hidden
        and doesn't scroll at all. Padding the wrong one pushes content past
        the bottom of a fixed-size box with no way to scroll to reach it. */
-    section[data-testid="stMain"] {{ padding-top: 56px !important; }}
+    section[data-testid="stMain"] {{ padding-top: 72px !important; }}
 
     /* ── KPI stat tiles ──────────────────────────────────────────────── */
     .kpi-card {{
@@ -95,8 +95,13 @@ def inject_css() -> None:
 
     /* ── Tag pills ────────────────────────────────────────────────────── */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .tags-scope) div[data-testid="stButton"] button {{
-        border-radius: 999px !important; padding: 3px 16px !important; font-size: 12.5px !important;
-        font-weight: 600 !important; min-height: 0 !important;
+        border-radius: 999px !important; padding: 0 16px !important; font-size: 12.5px !important;
+        font-weight: 600 !important; height: 34px !important; min-height: 34px !important;
+        white-space: nowrap !important; display: flex !important; align-items: center !important;
+        justify-content: center !important;
+    }}
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .tags-scope) div[data-testid="stButton"] {{
+        display: flex !important; align-items: flex-end !important;
     }}
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .tags-scope) div[data-testid="stButton"] button[data-testid="stBaseButton-secondary"] {{
         background: #fff !important; color: {primary} !important; border: 1px solid #CBD5E1 !important;

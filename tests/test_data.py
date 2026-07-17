@@ -175,3 +175,56 @@ def test_database_allowlist_restricts_structure(fixture_dir):
     df, _ = data._build_catalog_and_health()
     all_dbs = {db for row in df["databases"] for db in row}
     assert all_dbs == {"DB1"}
+
+
+@pytest.fixture
+def union_config():
+    """Save/restore the config knobs the union query builder reads."""
+    orig = {
+        "STRUCTURE_DATABASES": list(config.STRUCTURE_DATABASES),
+        "DATABASE_ALLOWLIST": list(config.DATABASE_ALLOWLIST),
+    }
+    yield
+    config.STRUCTURE_DATABASES = orig["STRUCTURE_DATABASES"]
+    config.DATABASE_ALLOWLIST = orig["DATABASE_ALLOWLIST"]
+
+
+def test_information_schema_union_query_builds_union_all(union_config):
+    config.STRUCTURE_DATABASES = ["FINANCE_DB", "HR_DB", "SALES_DB"]
+    config.DATABASE_ALLOWLIST = []
+    query = data._build_information_schema_union_query()
+    assert query.count("UNION ALL") == 2
+    for db in ["FINANCE_DB", "HR_DB", "SALES_DB"]:
+        assert f"FROM {db}.INFORMATION_SCHEMA.COLUMNS" in query
+    assert "TABLE_SCHEMA <> 'INFORMATION_SCHEMA'" in query
+
+
+def test_information_schema_union_query_empty_list_raises(union_config):
+    config.STRUCTURE_DATABASES = []
+    config.DATABASE_ALLOWLIST = []
+    with pytest.raises(ValueError, match="STRUCTURE_DATABASES is empty"):
+        data._build_information_schema_union_query()
+
+
+def test_information_schema_union_query_rejects_bad_identifier(union_config):
+    config.STRUCTURE_DATABASES = ["FINANCE_DB", "DROP TABLE FOO; --"]
+    config.DATABASE_ALLOWLIST = []
+    with pytest.raises(ValueError, match="invalid database name"):
+        data._build_information_schema_union_query()
+
+
+def test_information_schema_union_query_intersects_allowlist(union_config):
+    config.STRUCTURE_DATABASES = ["FINANCE_DB", "HR_DB", "SALES_DB"]
+    config.DATABASE_ALLOWLIST = ["HR_DB"]
+    query = data._build_information_schema_union_query()
+    assert "HR_DB.INFORMATION_SCHEMA" in query
+    assert "FINANCE_DB.INFORMATION_SCHEMA" not in query
+    assert "SALES_DB.INFORMATION_SCHEMA" not in query
+    assert "UNION ALL" not in query
+
+
+def test_information_schema_union_query_allowlist_excludes_all_raises(union_config):
+    config.STRUCTURE_DATABASES = ["FINANCE_DB", "HR_DB"]
+    config.DATABASE_ALLOWLIST = ["SOME_OTHER_DB"]
+    with pytest.raises(ValueError, match="excludes every database"):
+        data._build_information_schema_union_query()

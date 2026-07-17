@@ -13,7 +13,6 @@ import data
 import theme
 
 ALL_DATABASES = "All databases"
-ALL_SCHEMAS = "All schemas"
 PAGE_SIZES = [25, 50, 100]
 
 st.set_page_config(
@@ -37,19 +36,11 @@ except (ValueError, data.DataSourceError) as exc:
 catalog_df = catalog_df.reset_index(drop=True)
 catalog_df["_row_id"] = catalog_df.index
 
-all_databases = sorted({db for row in catalog_df["databases"] for db in row})
-all_schemas_by_db: dict = {}
-for row in catalog_df["schemas"]:
-    for schema_fqn in row:
-        db = schema_fqn.split(".")[0]
-        all_schemas_by_db.setdefault(db, set()).add(schema_fqn)
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Session state defaults
 # ─────────────────────────────────────────────────────────────────────────────
 
 st.session_state.setdefault("selected_db", ALL_DATABASES)
-st.session_state.setdefault("selected_schema", ALL_SCHEMAS)
 st.session_state.setdefault("documented_only", False)
 st.session_state.setdefault("page", 1)
 
@@ -60,54 +51,36 @@ st.session_state.setdefault("page", 1)
 theme.header()
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Browse databases & schemas — a native st.expander. This is the simplest,
-# most reliable way to give a section its own click-to-hide/show affordance:
-# Streamlit owns the expand/collapse state and the chevron natively, so
-# there's no custom CSS or session-state toggle to fight with (unlike a
-# CSS-collapsed st.sidebar, which can end up fighting Streamlit's own
-# internal layout/resize handling for that element).
+# Browse databases — a native st.expander (click-to-hide/show, no custom
+# CSS/session-state toggle needed). Database filter pills come from
+# config.STRUCTURE_DATABASES, never derived by scanning the loaded data, so
+# the filter always matches exactly what's being pulled from the source.
 # ─────────────────────────────────────────────────────────────────────────────
 
-with st.expander("🔍  Browse databases & schemas", expanded=False):
-    theme.scope_marker("rail-scope")
+with st.expander("🔍  Browse databases", expanded=False):
+    theme.scope_marker("tags-scope")
 
-    all_active = st.session_state["selected_db"] == ALL_DATABASES
-    if theme.toggle_button("All databases", key="nav_all", active=all_active, use_container_width=False):
-        st.session_state["selected_db"] = ALL_DATABASES
-        st.session_state["selected_schema"] = ALL_SCHEMAS
-        st.rerun()
+    db_labels = ["All databases"] + list(config.STRUCTURE_DATABASES)
+    # Column width proportional to label length so each pill's box is wide
+    # enough for its own text (a short "HR_DB" box shouldn't match the width
+    # reserved for "All databases"), plus a modest trailing spacer so the
+    # row doesn't stretch full-width.
+    db_widths = [len(label) + 4 for label in db_labels]
+    db_cols = st.columns(db_widths + [sum(db_widths) // 2])
 
-    if all_databases:
-        db_cols = st.columns(len(all_databases))
-        for db_col, db in zip(db_cols, all_databases):
-            with db_col:
-                db_active = (
-                    st.session_state["selected_db"] == db
-                    and st.session_state["selected_schema"] == ALL_SCHEMAS
-                )
-                if theme.toggle_button(db, key=f"nav_db_{db}", active=db_active):
-                    st.session_state["selected_db"] = db
-                    st.session_state["selected_schema"] = ALL_SCHEMAS
-                    st.rerun()
-
-                for schema_fqn in sorted(all_schemas_by_db.get(db, [])):
-                    schema_active = st.session_state["selected_schema"] == schema_fqn
-                    schema_short = schema_fqn.split(".", 1)[1]
-                    if theme.toggle_button(
-                        f"  {schema_short}",
-                        key=f"nav_schema_{schema_fqn}", active=schema_active,
-                    ):
-                        st.session_state["selected_db"] = db
-                        st.session_state["selected_schema"] = schema_fqn
-                        st.rerun()
-
-    st.markdown("---")
-    if st.button("🔄 Refresh data"):
-        data.clear_cache()
-        st.rerun()
+    with db_cols[0]:
+        all_active = st.session_state["selected_db"] == ALL_DATABASES
+        if theme.toggle_button("All databases", key="db_all", active=all_active, use_container_width=True):
+            st.session_state["selected_db"] = ALL_DATABASES
+            st.rerun()
+    for i, db in enumerate(config.STRUCTURE_DATABASES):
+        with db_cols[i + 1]:
+            db_active = st.session_state["selected_db"] == db
+            if theme.toggle_button(db, key=f"db_{db}", active=db_active, use_container_width=True):
+                st.session_state["selected_db"] = db
+                st.rerun()
 
 selected_db = st.session_state["selected_db"]
-selected_schema = st.session_state["selected_schema"]
 documented_only = st.session_state["documented_only"]
 search_text = st.session_state.get("search_text", "")
 
@@ -128,25 +101,17 @@ if search_text:
 if selected_db != ALL_DATABASES:
     filtered_df = filtered_df[filtered_df["databases"].map(lambda lst: selected_db in lst)]
 
-if selected_schema != ALL_SCHEMAS:
-    filtered_df = filtered_df[filtered_df["schemas"].map(lambda lst: selected_schema in lst)]
-
 if documented_only:
     filtered_df = filtered_df[filtered_df["documented"]]
 
 filtered_df = filtered_df.reset_index(drop=True)
 
-filters_signature = (search_text, selected_db, selected_schema, documented_only)
+filters_signature = (search_text, selected_db, documented_only)
 if st.session_state.get("_filters_signature") != filters_signature:
     st.session_state["_filters_signature"] = filters_signature
     st.session_state["page"] = 1
 
-if selected_schema != ALL_SCHEMAS:
-    scope_label = selected_schema
-elif selected_db != ALL_DATABASES:
-    scope_label = selected_db
-else:
-    scope_label = "All databases"
+scope_label = selected_db if selected_db != ALL_DATABASES else "All databases"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Coverage metrics (reflect the filtered view)

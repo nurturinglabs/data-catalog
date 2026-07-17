@@ -39,7 +39,7 @@ DESCRIPTION_MAP = {
 TAGS_DELIMITER = ","
 
 # ── Layer 2 — structure (harvested, live) ───────────────────────────────────
-# One of: "information_schema" | "local_csv" | "snapshot_table"
+# One of: "information_schema" | "information_schema_union" | "local_csv" | "snapshot_table"
 STRUCTURE_SOURCE = "local_csv"
 
 STRUCT_LOCAL_CSV = {
@@ -51,8 +51,8 @@ STRUCT_SNAPSHOT_TABLE = {
 }
 
 # Default query against SNOWFLAKE.ACCOUNT_USAGE.COLUMNS (org-wide, ~90 min
-# latency). Swap to a single database's INFORMATION_SCHEMA.COLUMNS for the
-# zero-latency escape hatch (see README).
+# latency, needs IMPORTED PRIVILEGES on the SNOWFLAKE database). Used when
+# STRUCTURE_SOURCE == "information_schema".
 STRUCTURE_QUERY = """
 SELECT
     TABLE_CATALOG,
@@ -65,6 +65,13 @@ WHERE DELETED IS NULL
   AND TABLE_SCHEMA <> 'INFORMATION_SCHEMA'
 """
 
+# Databases to pull structure from when STRUCTURE_SOURCE ==
+# "information_schema_union" — each database's own INFORMATION_SCHEMA.COLUMNS
+# is queried directly (real-time, no ACCOUNT_USAGE grant needed) and the
+# results are combined with UNION ALL. Also drives the database filter row
+# in the UI (app.py reads this list, never derives it from the data).
+STRUCTURE_DATABASES = ["FINANCE_DB", "HR_DB", "SALES_DB"]
+
 # Canonical field -> header name in the raw structure source.
 STRUCTURE_MAP = {
     "database": "TABLE_CATALOG",
@@ -75,8 +82,8 @@ STRUCTURE_MAP = {
 }
 
 # If non-empty, structure is restricted to these databases (injected into the
-# SQL WHERE for information_schema; filtered in pandas for csv/table sources).
-# Empty = unrestricted.
+# SQL WHERE for information_schema / information_schema_union; filtered in
+# pandas for csv/table sources). Empty = unrestricted.
 DATABASE_ALLOWLIST: list[str] = []
 
 # ── Join / display ───────────────────────────────────────────────────────────

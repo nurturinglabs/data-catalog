@@ -9,6 +9,7 @@ source, path, table name, or credential — all of that lives in config.py.
 from __future__ import annotations
 
 import datetime as _dt
+import re
 from collections import Counter
 
 import pandas as pd
@@ -178,6 +179,53 @@ def _read_information_schema() -> pd.DataFrame:
         raise DataSourceError(f"Could not query structure source: {exc}") from exc
 
 
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _validate_database_identifier(name: str) -> None:
+    if not _IDENTIFIER_RE.match(name):
+        raise ValueError(
+            f"STRUCTURE_DATABASES contains an invalid database name: {name!r}. "
+            f"Each entry must be a plain identifier (letters, digits, underscore)."
+        )
+
+
+def _build_information_schema_union_query() -> str:
+    databases = list(config.STRUCTURE_DATABASES)
+    if not databases:
+        raise ValueError(
+            "STRUCTURE_DATABASES is empty. Populate it with the databases to pull "
+            "structure from when STRUCTURE_SOURCE is 'information_schema_union'."
+        )
+    for db in databases:
+        _validate_database_identifier(db)
+
+    if config.DATABASE_ALLOWLIST:
+        databases = [db for db in databases if db in config.DATABASE_ALLOWLIST]
+        if not databases:
+            raise ValueError(
+                "DATABASE_ALLOWLIST excludes every database in STRUCTURE_DATABASES; "
+                "there is nothing left to query."
+            )
+
+    selects = [
+        "SELECT TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, DATA_TYPE "
+        f"FROM {db}.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA <> 'INFORMATION_SCHEMA'"
+        for db in databases
+    ]
+    return "\nUNION ALL\n".join(selects)
+
+
+def _read_information_schema_union() -> pd.DataFrame:
+    query = _build_information_schema_union_query()
+    try:
+        from snowflake.snowpark.context import get_active_session
+        session = get_active_session()
+        return session.sql(query).to_pandas()
+    except Exception as exc:
+        raise DataSourceError(f"Could not query structure source: {exc}") from exc
+
+
 def _read_local_csv() -> pd.DataFrame:
     cfg = config.STRUCT_LOCAL_CSV
     try:
@@ -222,6 +270,8 @@ def _read_raw_descriptions() -> pd.DataFrame:
 def _read_raw_structure() -> pd.DataFrame:
     if config.STRUCTURE_SOURCE == "information_schema":
         return _read_information_schema()
+    if config.STRUCTURE_SOURCE == "information_schema_union":
+        return _read_information_schema_union()
     if config.STRUCTURE_SOURCE == "local_csv":
         return _read_local_csv()
     if config.STRUCTURE_SOURCE == "snapshot_table":
