@@ -16,7 +16,7 @@ import data
 
 @pytest.fixture
 def fixture_dir(tmp_path):
-    """Write small structure.csv / descriptions.xlsx fixtures and point
+    """Write small structure.csv / descriptions.csv fixtures and point
     config at them for the duration of one test."""
     structure_rows = [
         # CUSIP-like shared column across 3 tables -> non-trivial reverse index
@@ -49,12 +49,13 @@ def fixture_dir(tmp_path):
          "Tags": "", "Steward": ""},
         # MYSTERY_COL intentionally absent -> undocumented
     ])
-    descriptions_path = tmp_path / "descriptions.xlsx"
-    descriptions_df.to_excel(descriptions_path, index=False, sheet_name="Sheet1")
+    descriptions_path = tmp_path / "descriptions.csv"
+    descriptions_df.to_csv(descriptions_path, index=False)
 
     orig = {
         "STRUCT_LOCAL_CSV": dict(config.STRUCT_LOCAL_CSV),
-        "DESC_EXCEL_LOCAL": dict(config.DESC_EXCEL_LOCAL),
+        "DESC_CSV_LOCAL": dict(config.DESC_CSV_LOCAL),
+        "DESCRIPTIONS_SOURCE": config.DESCRIPTIONS_SOURCE,
         "JOIN_GRAIN": config.JOIN_GRAIN,
         "CATALOG_SPINE": config.CATALOG_SPINE,
         "DATABASE_ALLOWLIST": list(config.DATABASE_ALLOWLIST),
@@ -63,12 +64,14 @@ def fixture_dir(tmp_path):
     }
 
     config.STRUCT_LOCAL_CSV = {"path": str(structure_path)}
-    config.DESC_EXCEL_LOCAL = {"path": str(descriptions_path), "sheet": 0}
+    config.DESC_CSV_LOCAL = {"path": str(descriptions_path)}
+    config.DESCRIPTIONS_SOURCE = "csv_local"
 
     yield tmp_path
 
     config.STRUCT_LOCAL_CSV = orig["STRUCT_LOCAL_CSV"]
-    config.DESC_EXCEL_LOCAL = orig["DESC_EXCEL_LOCAL"]
+    config.DESC_CSV_LOCAL = orig["DESC_CSV_LOCAL"]
+    config.DESCRIPTIONS_SOURCE = orig["DESCRIPTIONS_SOURCE"]
     config.JOIN_GRAIN = orig["JOIN_GRAIN"]
     config.CATALOG_SPINE = orig["CATALOG_SPINE"]
     config.DATABASE_ALLOWLIST = orig["DATABASE_ALLOWLIST"]
@@ -178,7 +181,7 @@ def test_database_allowlist_restricts_structure(fixture_dir):
 
 
 def test_approved_defaults_false_without_column(fixture_dir):
-    # The fixture's descriptions.xlsx has no "Approved" header at all.
+    # The fixture's descriptions.csv has no "Approved" header at all.
     df, _ = data._build_catalog_and_health()
     assert not df["approved"].any()
 
@@ -189,7 +192,7 @@ def test_approved_parses_truthy_tokens(fixture_dir):
         {"Column Name": "NAME", "Description": "desc", "Tags": "", "Steward": "", "Approved": "no"},
         {"Column Name": "MODE_COL", "Description": "desc", "Tags": "", "Steward": "", "Approved": ""},
     ])
-    descriptions_df.to_excel(config.DESC_EXCEL_LOCAL["path"], index=False, sheet_name="Sheet1")
+    descriptions_df.to_csv(config.DESC_CSV_LOCAL["path"], index=False)
 
     df, _ = data._build_catalog_and_health()
     assert bool(_row(df, "SHARED_ID")["approved"]) is True

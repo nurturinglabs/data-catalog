@@ -10,8 +10,12 @@ lives here. app.py and data.py must never reference a concrete data source.
 # ═══════════════════════════════════════════════════════════════════════════
 
 # ── Layer 1 — descriptions (curated) ─────────────────────────────────────────
-# One of: "excel_local" | "excel_stage" | "snowflake_table"
-DESCRIPTIONS_SOURCE = "excel_local"
+# One of: "csv_local" | "excel_local" | "excel_stage" | "snowflake_table"
+DESCRIPTIONS_SOURCE = "csv_local"
+
+DESC_CSV_LOCAL = {
+    "path": "sample_data/descriptions.csv",
+}
 
 DESC_EXCEL_LOCAL = {
     "path": "sample_data/descriptions.xlsx",

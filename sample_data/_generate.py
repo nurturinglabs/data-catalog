@@ -1,9 +1,9 @@
 """
 Regenerates the two synthetic demo sources: structure.csv and
-descriptions.xlsx. Run with: python sample_data/_generate.py
+descriptions.csv. Run with: python sample_data/_generate.py
 
 structure.csv is INFORMATION_SCHEMA-shaped physical schema for 3 synthetic
-databases. descriptions.xlsx is a partial, human-authored description layer
+databases. descriptions.csv is a partial, human-authored description layer
 covering roughly two-thirds of the distinct column names, so the demo shows a
 non-trivial reverse index and coverage < 100%.
 """
@@ -190,10 +190,10 @@ def main():
     assert len(structure_df) >= 50, "need >= 50 physical columns"
 
     structure_path = os.path.join(HERE, "structure.csv")
-    descriptions_path = os.path.join(HERE, "descriptions.xlsx")
+    descriptions_path = os.path.join(HERE, "descriptions.csv")
 
     structure_df.to_csv(structure_path, index=False)
-    descriptions_df.to_excel(descriptions_path, index=False, sheet_name="Sheet1")
+    descriptions_df.to_csv(descriptions_path, index=False)
 
     print(f"Wrote {structure_path} ({len(structure_df)} rows, "
           f"{n_dbs} databases, {n_schemas} schemas, {n_tables} tables, "

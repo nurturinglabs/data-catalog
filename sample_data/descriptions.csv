@@ -1,0 +1,41 @@
+Column Name,Description,Tags,Steward,Approved
+AMOUNT,"Invoice amount due, in USD.",Certified,Finance,FALSE
+AMOUNT_PAID,"Amount paid against the invoice, in USD.",,Finance,FALSE
+CATEGORY,Product category used for merchandising and reporting.,,,FALSE
+CITY,City component of the mailing address.,,Data Governance,FALSE
+CREATED_AT,Timestamp the record was first created.,,,FALSE
+CUSIP,Cross-system identifier linking finance records to a security or instrument.,Certified,Finance,TRUE
+CUSTOMER_ID,Unique identifier for a customer account.,Certified,Data Governance,TRUE
+DEPARTMENT_ID,Unique identifier for an organizational department.,,People Analytics,TRUE
+DEPARTMENT_NAME,Display name of the department.,,People Analytics,FALSE
+EMAIL,Primary email address on file.,PII,Data Governance,FALSE
+EMPLOYEE_ID,Unique identifier for an employee record.,Certified,People Analytics,TRUE
+FIRST_NAME,Given name of the individual.,PII,Data Governance,FALSE
+GROSS_PAY,"Gross pay before deductions, in USD.",,People Analytics,FALSE
+HIRE_DATE,Date the employee's current employment began.,,People Analytics,FALSE
+INVOICE_DATE,Date the invoice was issued.,,Finance,FALSE
+INVOICE_ID,Unique identifier for a vendor invoice.,Certified,Finance,TRUE
+LAST_NAME,Family name of the individual.,PII,Data Governance,FALSE
+LIFETIME_VALUE,"Modeled lifetime value of the customer, in USD.",,Marketing Analytics,FALSE
+MANAGER_ID,Employee ID of this employee's direct manager.,,People Analytics,FALSE
+NET_PAY,"Net pay after deductions, in USD.",,People Analytics,FALSE
+ORDER_DATE,Calendar date the order was placed.,,Sales Ops,FALSE
+ORDER_ID,Unique identifier for a customer order.,Certified,Sales Ops,TRUE
+ORDER_ITEM_ID,Unique identifier for a single line item on an order.,,Sales Ops,FALSE
+PAYMENT_DATE,Date the payment was made.,,Finance,FALSE
+PAYMENT_ID,Unique identifier for a payment record.,,Finance,FALSE
+PAYROLL_ID,Unique identifier for a payroll run line.,,People Analytics,FALSE
+PAY_PERIOD,Pay period the payroll entry applies to (YYYY-MM).,,,FALSE
+PHONE,Primary phone number on file.,PII,Data Governance,FALSE
+PRODUCT_ID,Unique identifier for a product SKU.,Certified,Sales Ops,FALSE
+PRODUCT_NAME,Human-readable product name.,,Sales Ops,FALSE
+QUANTITY,Number of units ordered for this line item.,,,FALSE
+SEGMENT,Marketing-assigned customer segment label.,,Marketing Analytics,FALSE
+SSN,Social Security Number. Restricted access.,PII,People Analytics,FALSE
+STATE,Two-letter US state code.,,Data Governance,FALSE
+STATUS,"Current lifecycle status of the record (e.g. OPEN, CLOSED).",,Sales Ops,FALSE
+TAX_ID,Vendor's tax identification number.,PII,Finance,FALSE
+TOTAL_AMOUNT,"Total order value in USD, including tax.",Certified,Sales Ops,FALSE
+UNIT_PRICE,"List price per unit at time of order, in USD.",,Sales Ops,FALSE
+VENDOR_ID,Unique identifier for a vendor.,,Finance,TRUE
+VENDOR_NAME,Legal name of the vendor.,,Finance,FALSE

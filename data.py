@@ -138,6 +138,14 @@ def _validate_headers(
 # locally with no Snowflake libraries installed.
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _read_csv_local_descriptions() -> pd.DataFrame:
+    cfg = config.DESC_CSV_LOCAL
+    try:
+        return pd.read_csv(cfg["path"])
+    except Exception as exc:
+        raise DataSourceError(f"Could not read local CSV '{cfg['path']}': {exc}") from exc
+
+
 def _read_excel_local() -> pd.DataFrame:
     cfg = config.DESC_EXCEL_LOCAL
     try:
@@ -266,6 +274,8 @@ def _apply_allowlist_pandas(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _read_raw_descriptions() -> pd.DataFrame:
+    if config.DESCRIPTIONS_SOURCE == "csv_local":
+        return _read_csv_local_descriptions()
     if config.DESCRIPTIONS_SOURCE == "excel_local":
         return _read_excel_local()
     if config.DESCRIPTIONS_SOURCE == "excel_stage":

@@ -56,7 +56,7 @@ streamlit run app.py
 ```
 
 The demo ships with `sample_data/structure.csv` (75 physical columns across 3
-databases / 5 schemas / 13 tables) and `sample_data/descriptions.xlsx`
+databases / 5 schemas / 13 tables) and `sample_data/descriptions.csv`
 (partial coverage, ~70%), so the reverse index and the undocumented filter
 both have real content out of the box.
 
@@ -118,7 +118,7 @@ requirements.txt
 sample_data/
   _generate.py            # Regenerates the two synthetic sources.
   structure.csv           # INFORMATION_SCHEMA-shaped demo structure.
-  descriptions.xlsx        # Curated demo descriptions (partial coverage).
+  descriptions.csv        # Curated demo descriptions (partial coverage).
 tests/
   test_data.py            # Data-layer unit tests, no Snowflake required.
 ```
