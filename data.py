@@ -34,6 +34,7 @@ CANONICAL_FIELDS = [
     "databases",
     "schemas",
     "documented",
+    "consumers",
 ]
 
 _NULL_TOKENS = {"nan", "none", "null"}
@@ -70,6 +71,16 @@ def _parse_bool(value) -> bool:
     """Truthy on common spreadsheet conventions: TRUE/YES/Y/1/APPROVED/X
     (case-insensitive). Anything else, including blank/nan, is False."""
     return _clean_cell(value).strip().lower() in _TRUTHY_TOKENS
+
+
+def _parse_int_or_none(value) -> int | None:
+    cleaned = _clean_cell(value)
+    if not cleaned:
+        return None
+    try:
+        return int(float(cleaned))
+    except (TypeError, ValueError):
+        return None
 
 
 def _ci_header_lookup(columns) -> dict[str, str]:
@@ -262,6 +273,43 @@ def _read_snapshot_table() -> pd.DataFrame:
     return _apply_allowlist_pandas(df)
 
 
+def _read_usage_local_csv() -> pd.DataFrame:
+    cfg = config.USAGE_LOCAL_CSV
+    try:
+        return pd.read_csv(cfg["path"])
+    except Exception as exc:
+        raise DataSourceError(f"Could not read local CSV '{cfg['path']}': {exc}") from exc
+
+
+def _read_usage_access_history() -> pd.DataFrame:
+    try:
+        from snowflake.snowpark.context import get_active_session
+        session = get_active_session()
+        return session.sql(config.USAGE_QUERY).to_pandas()
+    except Exception as exc:
+        raise DataSourceError(f"Could not query usage source: {exc}") from exc
+
+
+def _read_usage_snapshot_table() -> pd.DataFrame:
+    cfg = config.USAGE_SNAPSHOT_TABLE
+    try:
+        from snowflake.snowpark.context import get_active_session
+        session = get_active_session()
+        return session.table(cfg["table"]).to_pandas()
+    except Exception as exc:
+        raise DataSourceError(f"Could not read table '{cfg['table']}': {exc}") from exc
+
+
+def _read_raw_usage() -> pd.DataFrame:
+    if config.USAGE_SOURCE == "local_csv":
+        return _read_usage_local_csv()
+    if config.USAGE_SOURCE == "access_history":
+        return _read_usage_access_history()
+    if config.USAGE_SOURCE == "snapshot_table":
+        return _read_usage_snapshot_table()
+    raise DataSourceError(f"Unknown USAGE_SOURCE: {config.USAGE_SOURCE!r}")
+
+
 def _apply_allowlist_pandas(df: pd.DataFrame) -> pd.DataFrame:
     """Filter a raw structure DataFrame to DATABASE_ALLOWLIST (§8.3)."""
     if not config.DATABASE_ALLOWLIST:
@@ -337,6 +385,30 @@ def _canonicalize_structure(raw_df: pd.DataFrame, headers_found: dict) -> pd.Dat
     return out
 
 
+def _canonicalize_usage(raw_df: pd.DataFrame, headers_found: dict) -> pd.DataFrame:
+    out = pd.DataFrame()
+    out["column_name"] = raw_df[headers_found["column_name"]].map(_clean_cell)
+    out["consumer_name"] = raw_df[headers_found["consumer_name"]].map(_clean_cell)
+    out["consumer_type"] = raw_df[headers_found["consumer_type"]].map(_clean_cell)
+    if "table" in headers_found:
+        out["table"] = raw_df[headers_found["table"]].map(_clean_cell)
+    else:
+        out["table"] = ""
+    if "last_used" in headers_found:
+        out["last_used"] = raw_df[headers_found["last_used"]].map(_clean_cell)
+    else:
+        out["last_used"] = ""
+    if "query_count" in headers_found:
+        out["query_count"] = raw_df[headers_found["query_count"]].map(_parse_int_or_none)
+    else:
+        out["query_count"] = None
+    # Drop rows with no column name / consumer identity — nothing to key on.
+    out = out[
+        (out["column_name"] != "") & (out["consumer_name"] != "") & (out["consumer_type"] != "")
+    ]
+    return out
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Structure collapse — group physical columns to JOIN_GRAIN
 # ─────────────────────────────────────────────────────────────────────────────
@@ -355,7 +427,7 @@ def _grain_key(row) -> str:
 def _collapse_structure(structure_df: pd.DataFrame) -> pd.DataFrame:
     if structure_df.empty:
         return pd.DataFrame(
-            columns=["column_name", "data_type", "tables", "databases", "schemas"]
+            columns=["column_name", "data_type", "tables", "databases", "schemas", "_grain_key"]
         )
 
     df = structure_df.copy()
@@ -372,15 +444,73 @@ def _collapse_structure(structure_df: pd.DataFrame) -> pd.DataFrame:
             "tables": sorted(group["_table_fqn"].unique().tolist()),
             "databases": sorted(group["database"].unique().tolist()),
             "schemas": sorted(group["_schema_fqn"].unique().tolist()),
+            "_grain_key": key,
         })
     return pd.DataFrame(rows)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Usage aggregation — group consumer rows to the same JOIN_GRAIN as structure
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _usage_grain_key(row) -> str:
+    """Mirrors _grain_key's key format so usage rows land on the same grain
+    key as their matching catalog entry. Usage rows carry an optional
+    fully-qualified "table" string (DB.SCHEMA.TABLE) rather than separate
+    database/schema/table fields, so schema.column/table.column grains parse
+    it; if that info is missing, falls back to the bare column name rather
+    than failing — usage just won't match at the finer grain in that case."""
+    grain = config.JOIN_GRAIN
+    col = row["column_name"]
+    if grain == "column_name":
+        return col
+    parts = row["table"].split(".") if row["table"] else []
+    if grain == "schema.column" and len(parts) >= 2:
+        return f"{parts[0]}.{parts[1]}.{col}"
+    if grain == "table.column" and len(parts) >= 3:
+        return f"{parts[0]}.{parts[1]}.{parts[2]}.{col}"
+    return col
+
+
+def _aggregate_usage(usage_df: pd.DataFrame) -> dict[str, list[dict]]:
+    """Group usage rows by JOIN_GRAIN key; within each group, dedup
+    consumers by (consumer_name, consumer_type) taking MAX(last_used) and
+    SUM(query_count). Returns grain_key -> consumers list, sorted by
+    query_count descending then name."""
+    if usage_df.empty:
+        return {}
+
+    df = usage_df.copy()
+    df["_grain_key"] = df.apply(_usage_grain_key, axis=1)
+
+    result: dict[str, list[dict]] = {}
+    for key, group in df.groupby("_grain_key"):
+        consumers = []
+        for (name, ctype), sub in group.groupby(["consumer_name", "consumer_type"], sort=False):
+            last_used_values = [v for v in sub["last_used"] if v]
+            last_used = max(last_used_values) if last_used_values else None
+            query_counts = [v for v in sub["query_count"] if v is not None]
+            query_count = sum(query_counts) if query_counts else None
+            consumers.append({
+                "name": name,
+                "type": ctype,
+                "last_used": last_used,
+                "query_count": query_count,
+            })
+        consumers.sort(key=lambda c: (-(c["query_count"] or 0), c["name"]))
+        result[str(key)] = consumers
+    return result
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Join + spine
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _join(collapsed_structure: pd.DataFrame, descriptions_df: pd.DataFrame) -> pd.DataFrame:
+def _join(
+    collapsed_structure: pd.DataFrame,
+    descriptions_df: pd.DataFrame,
+    consumers_by_grain: dict[str, list[dict]],
+) -> pd.DataFrame:
     desc_lookup: dict[str, dict] = {}
     for _, row in descriptions_df.iterrows():
         desc_lookup[row["column_name"].upper()] = {
@@ -397,6 +527,7 @@ def _join(collapsed_structure: pd.DataFrame, descriptions_df: pd.DataFrame) -> p
         tags = match["tags"] if match else []
         steward = match["steward"] if match else ""
         approved = match["approved"] if match else False
+        consumers = consumers_by_grain.get(str(row["_grain_key"]), [])
         records.append({
             "column_name": row["column_name"],
             "description": description,
@@ -408,6 +539,7 @@ def _join(collapsed_structure: pd.DataFrame, descriptions_df: pd.DataFrame) -> p
             "databases": row["databases"],
             "schemas": row["schemas"],
             "documented": bool(description),
+            "consumers": consumers,
         })
 
     return pd.DataFrame(records, columns=CANONICAL_FIELDS)
@@ -417,6 +549,54 @@ def _apply_spine(catalog_df: pd.DataFrame) -> pd.DataFrame:
     if config.CATALOG_SPINE == "descriptions":
         return catalog_df[catalog_df["documented"]].reset_index(drop=True)
     return catalog_df.reset_index(drop=True)
+
+
+def _load_usage_and_health() -> tuple[dict[str, list[dict]], dict]:
+    """Never raises. USAGE_ENABLED=False, a missing/unreachable/empty source,
+    or a validation failure all degrade to consumers=[] for every entry —
+    the reason is recorded in the returned health fragment, not surfaced as
+    an error. The rest of the catalog must load normally regardless."""
+    if not config.USAGE_ENABLED:
+        return {}, {
+            "usage_enabled": False,
+            "usage_source": config.USAGE_SOURCE,
+            "usage_status": "disabled",
+            "usage_row_count": 0,
+        }
+
+    try:
+        raw_usage = _read_raw_usage()
+        usage_validation = _validate_headers(
+            raw_usage,
+            config.USAGE_MAP,
+            required_fields=["column_name", "consumer_name", "consumer_type"],
+            optional_fields=["table", "last_used", "query_count"],
+            source_label=f"usage:{config.USAGE_SOURCE}",
+        )
+        usage_df = _canonicalize_usage(raw_usage, usage_validation["headers_found"])
+        if usage_df.empty:
+            return {}, {
+                "usage_enabled": True,
+                "usage_source": config.USAGE_SOURCE,
+                "usage_status": "empty",
+                "usage_row_count": 0,
+            }
+        consumers_by_grain = _aggregate_usage(usage_df)
+        return consumers_by_grain, {
+            "usage_enabled": True,
+            "usage_source": config.USAGE_SOURCE,
+            "usage_status": "ok",
+            "usage_row_count": len(usage_df),
+            "usage_headers_found": usage_validation["headers_found"],
+            "usage_headers_missing_optional": usage_validation["headers_missing_optional"],
+        }
+    except Exception as exc:
+        return {}, {
+            "usage_enabled": True,
+            "usage_source": config.USAGE_SOURCE,
+            "usage_status": f"unavailable: {exc}",
+            "usage_row_count": 0,
+        }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -452,7 +632,10 @@ def _build_catalog_and_health() -> tuple[pd.DataFrame, dict]:
 
     structure_df = _canonicalize_structure(raw_structure, struct_validation["headers_found"])
     collapsed = _collapse_structure(structure_df)
-    catalog_df = _join(collapsed, descriptions_df)
+
+    consumers_by_grain, usage_health = _load_usage_and_health()
+
+    catalog_df = _join(collapsed, descriptions_df, consumers_by_grain)
     catalog_df = _apply_spine(catalog_df)
 
     assert list(catalog_df.columns) == CANONICAL_FIELDS, (
@@ -482,6 +665,7 @@ def _build_catalog_and_health() -> tuple[pd.DataFrame, dict]:
         "database_allowlist": list(config.DATABASE_ALLOWLIST),
         "last_refresh": _dt.datetime.now().isoformat(timespec="seconds"),
     }
+    health.update(usage_health)
 
     return catalog_df, health
 

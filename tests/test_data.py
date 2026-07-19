@@ -61,11 +61,21 @@ def fixture_dir(tmp_path):
         "DATABASE_ALLOWLIST": list(config.DATABASE_ALLOWLIST),
         "DESCRIPTION_MAP": dict(config.DESCRIPTION_MAP),
         "MAX_STRUCTURE_ROWS": config.MAX_STRUCTURE_ROWS,
+        "USAGE_ENABLED": config.USAGE_ENABLED,
+        "USAGE_SOURCE": config.USAGE_SOURCE,
+        "USAGE_LOCAL_CSV": dict(config.USAGE_LOCAL_CSV),
+        "USAGE_MAP": dict(config.USAGE_MAP),
     }
 
     config.STRUCT_LOCAL_CSV = {"path": str(structure_path)}
     config.DESC_CSV_LOCAL = {"path": str(descriptions_path)}
     config.DESCRIPTIONS_SOURCE = "csv_local"
+    # No usage.csv by default — points at a path that doesn't exist, so
+    # every test gets a deterministic graceful "unavailable" fallback
+    # (consumers=[]) unless it explicitly opts in with its own usage fixture.
+    config.USAGE_ENABLED = True
+    config.USAGE_SOURCE = "local_csv"
+    config.USAGE_LOCAL_CSV = {"path": str(tmp_path / "usage.csv")}
 
     yield tmp_path
 
@@ -77,6 +87,10 @@ def fixture_dir(tmp_path):
     config.DATABASE_ALLOWLIST = orig["DATABASE_ALLOWLIST"]
     config.DESCRIPTION_MAP = orig["DESCRIPTION_MAP"]
     config.MAX_STRUCTURE_ROWS = orig["MAX_STRUCTURE_ROWS"]
+    config.USAGE_ENABLED = orig["USAGE_ENABLED"]
+    config.USAGE_SOURCE = orig["USAGE_SOURCE"]
+    config.USAGE_LOCAL_CSV = orig["USAGE_LOCAL_CSV"]
+    config.USAGE_MAP = orig["USAGE_MAP"]
 
 
 def _row(df, column_name):
@@ -251,3 +265,78 @@ def test_information_schema_union_query_allowlist_excludes_all_raises(union_conf
     config.DATABASE_ALLOWLIST = ["SOME_OTHER_DB"]
     with pytest.raises(ValueError, match="excludes every database"):
         data._build_information_schema_union_query()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Usage layer (Layer 3 — "who reads this column")
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_usage_disabled_gives_empty_consumers(fixture_dir):
+    config.USAGE_ENABLED = False
+    df, health = data._build_catalog_and_health()
+    assert (df["consumers"].map(len) == 0).all()
+    assert health["usage_status"] == "disabled"
+    assert health["usage_enabled"] is False
+
+
+def test_usage_missing_source_degrades_gracefully(fixture_dir):
+    # fixture_dir points USAGE_LOCAL_CSV at a path that doesn't exist.
+    df, health = data._build_catalog_and_health()
+    assert (df["consumers"].map(len) == 0).all()
+    assert health["usage_status"].startswith("unavailable")
+    # The rest of the catalog still loads normally — no crash, no missing rows.
+    assert len(df) == 4
+
+
+def test_usage_empty_source_is_graceful(fixture_dir):
+    pd.DataFrame(columns=["column_name", "consumer_name", "consumer_type"]).to_csv(
+        config.USAGE_LOCAL_CSV["path"], index=False
+    )
+    df, health = data._build_catalog_and_health()
+    assert (df["consumers"].map(len) == 0).all()
+    assert health["usage_status"] == "empty"
+
+
+def test_usage_aggregates_and_dedups_consumers(fixture_dir):
+    usage_df = pd.DataFrame([
+        # appA reads SHARED_ID via two different tables -> should dedup to
+        # ONE consumer entry: query_count summed, last_used = the later date.
+        {"column_name": "SHARED_ID", "table": "DB1.PUBLIC.TABLE_A", "consumer_name": "appA",
+         "consumer_type": "Streamlit app", "last_used": "2024-01-01", "query_count": 100},
+        {"column_name": "SHARED_ID", "table": "DB1.PUBLIC.TABLE_B", "consumer_name": "appA",
+         "consumer_type": "Streamlit app", "last_used": "2024-06-01", "query_count": 50},
+        {"column_name": "SHARED_ID", "table": "DB2.PUBLIC.TABLE_C", "consumer_name": "dbtJob",
+         "consumer_type": "dbt model", "last_used": "2024-03-01", "query_count": 20},
+        {"column_name": "NAME", "table": "DB1.PUBLIC.TABLE_A", "consumer_name": "someUser",
+         "consumer_type": "User / ad-hoc", "last_used": "2024-02-01", "query_count": 5},
+    ])
+    usage_df.to_csv(config.USAGE_LOCAL_CSV["path"], index=False)
+
+    df, health = data._build_catalog_and_health()
+    assert health["usage_status"] == "ok"
+    assert health["usage_row_count"] == 4
+
+    shared = _row(df, "SHARED_ID")
+    consumers = shared["consumers"]
+    assert len(consumers) == 2  # appA deduped across two tables, dbtJob separate
+
+    by_name = {c["name"]: c for c in consumers}
+    assert by_name["appA"]["query_count"] == 150
+    assert by_name["appA"]["last_used"] == "2024-06-01"
+    assert by_name["appA"]["type"] == "Streamlit app"
+    assert by_name["dbtJob"]["query_count"] == 20
+
+    # Sorted by query_count descending.
+    assert consumers[0]["name"] == "appA"
+
+    name_row = _row(df, "NAME")
+    assert len(name_row["consumers"]) == 1
+    assert name_row["consumers"][0]["name"] == "someUser"
+
+    mode_row = _row(df, "MODE_COL")
+    assert mode_row["consumers"] == []
+
+
+def test_consumers_field_in_canonical_contract():
+    assert "consumers" in data.CANONICAL_FIELDS
+    assert data.CANONICAL_FIELDS[-1] == "consumers"

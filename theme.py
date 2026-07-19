@@ -18,7 +18,10 @@ The results list itself is a plain st.dataframe (row-click selection via
 on_select), not buttons — no scoping needed there.
 """
 
+from __future__ import annotations
+
 import base64
+import datetime as _dt
 import html
 import mimetypes
 import os
@@ -26,6 +29,9 @@ import os
 import streamlit as st
 
 import config
+
+USAGE_ACCENT = "#1A6EB5"  # deliberately distinct from ACCENT_COLOR (gold),
+# so the "Used by" list never visually blurs into the gold table reverse-index.
 
 
 def inject_css() -> None:
@@ -150,6 +156,27 @@ def inject_css() -> None:
         color: #334155; border-radius: 0 4px 4px 0;
     }}
 
+    /* "Used by" (usage/consumers) — deliberately blue-accented, not gold,
+       so it reads as a visually distinct list from the reverse-index. */
+    .detail-consumers {{ max-height: 240px; overflow-y: auto; }}
+    .consumer-item {{
+        border-left: 3px solid {USAGE_ACCENT}; padding: 6px 12px; margin-bottom: 5px;
+        background: #fff; border-radius: 0 4px 4px 0;
+    }}
+    .consumer-name-row {{ display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }}
+    .consumer-name {{ font-size: 12.5px; font-family: 'DM Mono', monospace; color: #334155; }}
+    .consumer-meta {{ font-size: 10.5px; color: #94A3B8; margin-top: 2px; }}
+    .usage-badge {{
+        display: inline-block; font-size: 9.5px; font-weight: 600; padding: 1px 8px;
+        border-radius: 20px; letter-spacing: 0.02em;
+    }}
+    .usage-badge-streamlit  {{ background: #FFE7E7; color: #B3261E; }}
+    .usage-badge-dbt        {{ background: #FFE8DC; color: #B04A00; }}
+    .usage-badge-dashboard  {{ background: #E6F1FB; color: #0C447C; }}
+    .usage-badge-scheduled  {{ background: #EEEDFE; color: #3C3489; }}
+    .usage-badge-adhoc      {{ background: #F1F5F9; color: #475569; }}
+    .usage-badge-default    {{ background: #F1F5F9; color: #475569; }}
+
     /* Misc widget polish */
     div[data-testid="stCheckbox"] label p {{ font-size: 13.5px !important; }}
     div[data-testid="stDataFrame"] {{ border-radius: 8px; overflow: hidden; }}
@@ -213,6 +240,67 @@ def undocumented_badge() -> str:
     return '<span class="pill pill-undocumented">Undocumented</span>'
 
 
+_USAGE_BADGE_CLASSES = {
+    "streamlit app": "usage-badge-streamlit",
+    "dbt model": "usage-badge-dbt",
+    "dashboard": "usage-badge-dashboard",
+    "scheduled query": "usage-badge-scheduled",
+    "user / ad-hoc": "usage-badge-adhoc",
+}
+
+
+def _consumer_type_badge(consumer_type: str) -> str:
+    cls = _USAGE_BADGE_CLASSES.get(consumer_type.strip().lower(), "usage-badge-default")
+    return f'<span class="usage-badge {cls}">{html.escape(consumer_type)}</span>'
+
+
+def _relative_time(date_str) -> str:
+    """'3 days ago' / 'today' / '2 months ago' style relative label for an
+    ISO-ish date string. Falls back to the raw string if unparseable."""
+    if not date_str:
+        return ""
+    try:
+        parsed = _dt.date.fromisoformat(str(date_str)[:10])
+    except ValueError:
+        return str(date_str)
+    days = (_dt.date.today() - parsed).days
+    if days < 0:
+        return str(date_str)
+    if days == 0:
+        return "today"
+    if days == 1:
+        return "yesterday"
+    if days < 30:
+        return f"{days} days ago"
+    if days < 365:
+        months = max(1, days // 30)
+        return f"{months} month{'s' if months != 1 else ''} ago"
+    years = max(1, days // 365)
+    return f"{years} year{'s' if years != 1 else ''} ago"
+
+
+def _render_consumer_item(consumer: dict) -> str:
+    name = html.escape(str(consumer.get("name", "")))
+    ctype = str(consumer.get("type", ""))
+    badge = _consumer_type_badge(ctype)
+
+    meta_parts = []
+    last_used = consumer.get("last_used")
+    if last_used:
+        meta_parts.append(f"last read {_relative_time(last_used)}")
+    query_count = consumer.get("query_count")
+    if query_count is not None:
+        meta_parts.append(f"{query_count:,} queries")
+    meta_html = f'<div class="consumer-meta">{" · ".join(meta_parts)}</div>' if meta_parts else ""
+
+    return (
+        '<div class="consumer-item">'
+        f'<div class="consumer-name-row"><span class="consumer-name">{name}</span>{badge}</div>'
+        f'{meta_html}'
+        '</div>'
+    )
+
+
 def scope_marker(name: str) -> None:
     """Invisible marker so a following region's buttons can be styled
     distinctly via a `:has()` CSS scope (see inject_css)."""
@@ -233,8 +321,15 @@ def toggle_button(label: str, key: str, active: bool, use_container_width: bool 
         return st.button(marker + label, key=key, use_container_width=use_container_width)
 
 
-def render_detail_card(row) -> None:
-    """Render the entire column-detail pane as one cohesive HTML block."""
+def render_detail_card(row, usage_status: str | None = None) -> None:
+    """Render the entire column-detail pane as one cohesive HTML block.
+
+    usage_status comes from data.load_health()["usage_status"] ("ok",
+    "empty", "disabled", or an "unavailable: ..." reason). When
+    config.USAGE_ENABLED is False the "Used by" section is omitted
+    entirely; otherwise a non-"ok" status swaps the per-column consumer
+    list for a single "not available" line instead of erroring.
+    """
     name = html.escape(str(row["column_name"]))
     data_type = html.escape(str(row["data_type"])) or "—"
     documented = bool(row["documented"])
@@ -262,6 +357,24 @@ def render_detail_card(row) -> None:
         f'<div class="reverse-index-item">{html.escape(t)}</div>' for t in tables
     )
 
+    usage_html = ""
+    if config.USAGE_ENABLED:
+        consumers = row["consumers"] or []
+        if usage_status not in (None, "ok"):
+            consumers_body = '<div class="detail-meta">Usage data not available in this environment.</div>'
+        elif consumers:
+            consumers_body = (
+                '<div class="detail-consumers">'
+                + "".join(_render_consumer_item(c) for c in consumers)
+                + "</div>"
+            )
+        else:
+            consumers_body = '<div class="detail-meta">No recorded consumers.</div>'
+        count_suffix = f" ({len(consumers)})" if consumers else ""
+        usage_html = f"""
+      <p class="detail-section-label">Used by{count_suffix}</p>
+      {consumers_body}"""
+
     st.markdown(f"""
     <div class="detail-card">
       <div class="detail-header">
@@ -277,5 +390,6 @@ def render_detail_card(row) -> None:
       </div>
       <p class="detail-section-label">Used in {n_tables} {table_word} — live from schema</p>
       <div class="detail-tables">{tables_html}</div>
+      {usage_html}
     </div>
     """, unsafe_allow_html=True)

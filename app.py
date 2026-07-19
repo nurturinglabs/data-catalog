@@ -296,7 +296,8 @@ with detail_col:
     if detail_row is None:
         st.info("No column selected.")
     else:
-        theme.render_detail_card(detail_row)
+        usage_status = data.load_health().get("usage_status")
+        theme.render_detail_card(detail_row, usage_status=usage_status)
 
 # # ─────────────────────────────────────────────────────────────────────────────
 # # Catalog health panel

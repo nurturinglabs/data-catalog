@@ -93,6 +93,73 @@ STRUCTURE_MAP = {
 # pandas for csv/table sources). Empty = unrestricted.
 DATABASE_ALLOWLIST: list[str] = []
 
+# ── Layer 3 — usage (who reads this, optional) ───────────────────────────────
+# Master switch. When False, the usage load is skipped entirely and all
+# "Used by" UI is hidden — a clean way to turn this layer off.
+USAGE_ENABLED = True
+
+# One of: "local_csv" | "access_history" | "snapshot_table"
+# There is no Snowflake connection available yet, so this defaults to the
+# local synthetic file. Switching to "access_history" later is a config-only
+# change — no code changes required — exactly like STRUCTURE_SOURCE.
+USAGE_SOURCE = "local_csv"
+
+USAGE_LOCAL_CSV = {
+    "path": "sample_data/usage.csv",
+}
+
+USAGE_SNAPSHOT_TABLE = {
+    "table": "CATALOG_DB.GOVERNANCE.USAGE_SNAPSHOT",
+}
+
+# ACCESS_HISTORY-based query used when USAGE_SOURCE == "access_history".
+# This is a STARTING TEMPLATE, not guaranteed-final SQL — the JSON paths and
+# the consumer-labeling heuristic (the query_tag CASE expression below) must
+# be validated against real ACCESS_HISTORY data in your account before
+# relying on it. Requires Enterprise Edition, IMPORTED PRIVILEGES ON DATABASE
+# SNOWFLAKE, and tolerance for ACCESS_HISTORY's normal latency. The
+# consumer-type heuristic only works as well as your org's query-tagging
+# conventions — edit the CASE expression to match how your team tags
+# Streamlit/dbt/dashboard jobs.
+USAGE_QUERY = """
+SELECT
+    cols.value:"columnName"::string   AS column_name,
+    obj.value:"objectName"::string    AS table_name,
+    COALESCE(qh.query_tag, ah.user_name) AS consumer_name,
+    CASE
+        WHEN qh.query_tag ILIKE '%streamlit%' THEN 'Streamlit app'
+        WHEN qh.query_tag ILIKE '%dbt%'       THEN 'dbt model'
+        WHEN qh.query_tag ILIKE '%tableau%'
+          OR qh.query_tag ILIKE '%powerbi%'
+          OR qh.query_tag ILIKE '%sigma%'     THEN 'Dashboard'
+        WHEN qh.query_type = 'SELECT'
+          AND qh.scheduled = TRUE             THEN 'Scheduled query'
+        ELSE 'User / ad-hoc'
+    END                                AS consumer_type,
+    MAX(ah.query_start_time)::string   AS last_used,
+    COUNT(*)                           AS query_count
+FROM SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY ah
+JOIN SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY qh
+    ON ah.query_id = qh.query_id
+, LATERAL FLATTEN(input => ah.base_objects_accessed) obj
+, LATERAL FLATTEN(input => obj.value:"columns") cols
+WHERE ah.query_start_time >= DATEADD('day', -90, CURRENT_TIMESTAMP())
+  AND obj.value:"objectDomain"::string = 'Table'
+GROUP BY 1, 2, 3, 4
+"""
+
+# Canonical field -> header name in the raw usage source.
+# Required: column_name, consumer_name, consumer_type.
+# Optional: table, last_used, query_count.
+USAGE_MAP = {
+    "column_name": "column_name",
+    "table": "table",
+    "consumer_name": "consumer_name",
+    "consumer_type": "consumer_type",
+    "last_used": "last_used",
+    "query_count": "query_count",
+}
+
 # ── Join / display ───────────────────────────────────────────────────────────
 # One of: "column_name" | "schema.column" | "table.column"
 JOIN_GRAIN = "column_name"

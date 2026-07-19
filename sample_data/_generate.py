@@ -1,18 +1,27 @@
 """
-Regenerates the two synthetic demo sources: structure.csv and
-descriptions.csv. Run with: python sample_data/_generate.py
+Regenerates the three synthetic demo sources: structure.csv,
+descriptions.csv, and usage.csv. Run with: python sample_data/_generate.py
 
 structure.csv is INFORMATION_SCHEMA-shaped physical schema for 3 synthetic
 databases. descriptions.csv is a partial, human-authored description layer
 covering roughly two-thirds of the distinct column names, so the demo shows a
-non-trivial reverse index and coverage < 100%.
+non-trivial reverse index and coverage < 100%. usage.csv is synthetic
+"who reads this column" data spanning multiple consumer types, with a couple
+of load-bearing columns, some single-consumer columns, and several documented
+columns with no recorded usage at all.
 """
 
+import datetime as _dt
 import os
 
 import pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+TODAY = _dt.date.today()
+
+
+def _days_ago(n: int) -> str:
+    return (TODAY - _dt.timedelta(days=n)).isoformat()
 
 # (TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME) -> [COLUMN_NAME, ...]
 # Column order within a table also implies a DATA_TYPE below.
@@ -147,6 +156,46 @@ DESCRIPTIONS = {
     "TAX_ID": ("Vendor's tax identification number.", "PII", "Finance", False),
 }
 
+# Synthetic usage: (column_name, table, consumer_name, consumer_type,
+# days_ago, query_count). Only references (column, table) pairs that exist
+# in TABLES. CUSIP and CUSTOMER_ID are deliberately load-bearing (many
+# consumers across all 5 types, recent last_used). Several documented
+# columns (FIRST_NAME, LAST_NAME, EMAIL, HIRE_DATE, DEPARTMENT_NAME,
+# PRODUCT_NAME, GROSS_PAY, NET_PAY, ...) intentionally have NO usage rows at
+# all, so the empty state is visible in the demo.
+USAGE_ROWS = [
+    # CUSIP — load-bearing: all 5 consumer types, spread of recency
+    ("CUSIP", "FINANCE_DB.PUBLIC.INVOICES", "finance_dashboard", "Dashboard", 5, 1200),
+    ("CUSIP", "FINANCE_DB.REPORTING.GL_ENTRIES", "gl_reconciliation", "dbt model", 2, 340),
+    ("CUSIP", "FINANCE_DB.PUBLIC.PAYMENTS", "audit_report_app", "Streamlit app", 10, 89),
+    ("CUSIP", "FINANCE_DB.PUBLIC.INVOICES", "nightly_recon_job", "Scheduled query", 1, 5000),
+    ("CUSIP", "FINANCE_DB.PUBLIC.VENDORS", "jsmith", "User / ad-hoc", 45, 12),
+
+    # CUSTOMER_ID — load-bearing: high query counts, very recent
+    ("CUSTOMER_ID", "SALES_DB.PUBLIC.CUSTOMERS", "customer_360_app", "Streamlit app", 1, 8500),
+    ("CUSTOMER_ID", "SALES_DB.PUBLIC.ORDERS", "stg_customers", "dbt model", 1, 220),
+    ("CUSTOMER_ID", "SALES_DB.PUBLIC.CUSTOMERS", "sales_dashboard", "Dashboard", 3, 640),
+    ("CUSTOMER_ID", "SALES_DB.ANALYTICS.SALES_SUMMARY", "marketing_ops_job", "Scheduled query", 7, 150),
+
+    # Moderate — a couple of consumers each
+    ("EMPLOYEE_ID", "HR_DB.PUBLIC.EMPLOYEES", "hr_portal", "Streamlit app", 14, 320),
+    ("EMPLOYEE_ID", "HR_DB.PUBLIC.PAYROLL", "payroll_dbt", "dbt model", 2, 95),
+    ("ORDER_ID", "SALES_DB.PUBLIC.ORDERS", "order_tracking_app", "Streamlit app", 4, 2100),
+    ("ORDER_ID", "SALES_DB.PUBLIC.ORDER_ITEMS", "fulfillment_dashboard", "Dashboard", 6, 780),
+    ("INVOICE_ID", "FINANCE_DB.PUBLIC.INVOICES", "ap_dashboard", "Dashboard", 3, 560),
+    ("INVOICE_ID", "FINANCE_DB.PUBLIC.INVOICES", "vendor_dbt_model", "dbt model", 1, 140),
+
+    # Single consumer
+    ("SSN", "HR_DB.PUBLIC.EMPLOYEES", "compliance_audit_job", "Scheduled query", 60, 20),
+    ("TOTAL_AMOUNT", "SALES_DB.PUBLIC.ORDERS", "finance_dashboard", "Dashboard", 5, 450),
+    ("VENDOR_ID", "FINANCE_DB.PUBLIC.VENDORS", "ap_dashboard", "Dashboard", 8, 75),
+    ("PRODUCT_ID", "SALES_DB.PUBLIC.PRODUCTS", "catalog_app", "Streamlit app", 12, 410),
+    ("DEPARTMENT_ID", "HR_DB.PUBLIC.DEPARTMENTS", "hr_portal", "Streamlit app", 20, 60),
+
+    # Single consumer, very stale (~9 months) — for a later "still used?" view
+    ("AMOUNT", "FINANCE_DB.PUBLIC.INVOICES", "old_reporting_tool", "User / ad-hoc", 270, 8),
+]
+
 
 def build_structure_df() -> pd.DataFrame:
     rows = []
@@ -175,9 +224,24 @@ def build_descriptions_df() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def build_usage_df() -> pd.DataFrame:
+    rows = []
+    for col, table, consumer_name, consumer_type, days_ago, query_count in USAGE_ROWS:
+        rows.append({
+            "column_name": col,
+            "table": table,
+            "consumer_name": consumer_name,
+            "consumer_type": consumer_type,
+            "last_used": _days_ago(days_ago),
+            "query_count": query_count,
+        })
+    return pd.DataFrame(rows)
+
+
 def main():
     structure_df = build_structure_df()
     descriptions_df = build_descriptions_df()
+    usage_df = build_usage_df()
 
     distinct_cols = {col for cols in TABLES.values() for col in cols}
     n_dbs = len({db for db, _, _ in TABLES})
@@ -189,11 +253,18 @@ def main():
     assert n_tables >= 12, "need >= 12 tables"
     assert len(structure_df) >= 50, "need >= 50 physical columns"
 
+    usage_consumer_types = {row[3] for row in USAGE_ROWS}
+    usage_cols = {row[0] for row in USAGE_ROWS}
+    assert len(usage_consumer_types) >= 5, "need all 5 consumer types represented"
+    assert usage_cols <= distinct_cols, "usage.csv references a column not in structure.csv"
+
     structure_path = os.path.join(HERE, "structure.csv")
     descriptions_path = os.path.join(HERE, "descriptions.csv")
+    usage_path = os.path.join(HERE, "usage.csv")
 
     structure_df.to_csv(structure_path, index=False)
     descriptions_df.to_csv(descriptions_path, index=False)
+    usage_df.to_csv(usage_path, index=False)
 
     print(f"Wrote {structure_path} ({len(structure_df)} rows, "
           f"{n_dbs} databases, {n_schemas} schemas, {n_tables} tables, "
@@ -201,6 +272,8 @@ def main():
     print(f"Wrote {descriptions_path} ({len(descriptions_df)} documented "
           f"columns of {len(distinct_cols)} distinct — "
           f"{len(distinct_cols) - len(descriptions_df)} left undocumented)")
+    print(f"Wrote {usage_path} ({len(usage_df)} usage rows across "
+          f"{len(usage_cols)} columns, {len(usage_consumer_types)} consumer types)")
 
 
 if __name__ == "__main__":

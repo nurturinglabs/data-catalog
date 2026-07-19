@@ -1,0 +1,22 @@
+column_name,table,consumer_name,consumer_type,last_used,query_count
+CUSIP,FINANCE_DB.PUBLIC.INVOICES,finance_dashboard,Dashboard,2026-07-13,1200
+CUSIP,FINANCE_DB.REPORTING.GL_ENTRIES,gl_reconciliation,dbt model,2026-07-16,340
+CUSIP,FINANCE_DB.PUBLIC.PAYMENTS,audit_report_app,Streamlit app,2026-07-08,89
+CUSIP,FINANCE_DB.PUBLIC.INVOICES,nightly_recon_job,Scheduled query,2026-07-17,5000
+CUSIP,FINANCE_DB.PUBLIC.VENDORS,jsmith,User / ad-hoc,2026-06-03,12
+CUSTOMER_ID,SALES_DB.PUBLIC.CUSTOMERS,customer_360_app,Streamlit app,2026-07-17,8500
+CUSTOMER_ID,SALES_DB.PUBLIC.ORDERS,stg_customers,dbt model,2026-07-17,220
+CUSTOMER_ID,SALES_DB.PUBLIC.CUSTOMERS,sales_dashboard,Dashboard,2026-07-15,640
+CUSTOMER_ID,SALES_DB.ANALYTICS.SALES_SUMMARY,marketing_ops_job,Scheduled query,2026-07-11,150
+EMPLOYEE_ID,HR_DB.PUBLIC.EMPLOYEES,hr_portal,Streamlit app,2026-07-04,320
+EMPLOYEE_ID,HR_DB.PUBLIC.PAYROLL,payroll_dbt,dbt model,2026-07-16,95
+ORDER_ID,SALES_DB.PUBLIC.ORDERS,order_tracking_app,Streamlit app,2026-07-14,2100
+ORDER_ID,SALES_DB.PUBLIC.ORDER_ITEMS,fulfillment_dashboard,Dashboard,2026-07-12,780
+INVOICE_ID,FINANCE_DB.PUBLIC.INVOICES,ap_dashboard,Dashboard,2026-07-15,560
+INVOICE_ID,FINANCE_DB.PUBLIC.INVOICES,vendor_dbt_model,dbt model,2026-07-17,140
+SSN,HR_DB.PUBLIC.EMPLOYEES,compliance_audit_job,Scheduled query,2026-05-19,20
+TOTAL_AMOUNT,SALES_DB.PUBLIC.ORDERS,finance_dashboard,Dashboard,2026-07-13,450
+VENDOR_ID,FINANCE_DB.PUBLIC.VENDORS,ap_dashboard,Dashboard,2026-07-10,75
+PRODUCT_ID,SALES_DB.PUBLIC.PRODUCTS,catalog_app,Streamlit app,2026-07-06,410
+DEPARTMENT_ID,HR_DB.PUBLIC.DEPARTMENTS,hr_portal,Streamlit app,2026-06-28,60
+AMOUNT,FINANCE_DB.PUBLIC.INVOICES,old_reporting_tool,User / ad-hoc,2025-10-21,8
