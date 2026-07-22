@@ -41,34 +41,80 @@ def inject_css() -> None:
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono&display=swap');
     html, body, [class*="css"] {{ font-family: 'DM Sans', sans-serif; }}
-    .block-container {{ padding-top: 0.6rem !important; padding-bottom: 4rem !important; max-width: 1500px; }}
+    .block-container {{
+        padding-top: 0 !important; padding-bottom: 4rem !important;
+        max-width: 100% !important; padding-left: 2.25rem !important; padding-right: 2.25rem !important;
+    }}
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}}
     div[data-testid="stVerticalBlock"] > div {{ gap: 0.5rem; }}
     code {{ font-family: 'DM Mono', monospace; }}
 
-    /* Hide Streamlit's own top toolbar — our fixed header replaces it */
+    /* Hide Streamlit's own top toolbar — our header replaces it */
     header[data-testid="stHeader"], div[data-testid="stAppHeader"] {{ display: none !important; }}
+    section[data-testid="stMain"] {{ padding-top: 0 !important; }}
 
-    /* ── Header band — fixed, full viewport width, above sidebar + content ── */
-    .catalog-header {{
-        position: fixed; top: 0; left: 0; right: 0; width: 100%; height: 72px;
-        z-index: 999998; background: {primary}; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 0 26px; box-sizing: border-box;
+    /* ── Header band — a normal in-flow block at the top of the page (not
+       position:fixed — that technique proved unreliable across several
+       attempts in this environment for reasons I couldn't pin down without
+       a browser to inspect, so it's not worth the risk here). Targeted via
+       st.container(key="header-band"), which Streamlit turns directly into
+       a stable .st-key-header-band class on the container's own element —
+       no ancestor-matching :has() guesswork, which turned out to be
+       unreliable specifically for this block despite working for the rail
+       nav / tag pills / result cards elsewhere in this file. This needs to
+       be a real Streamlit block, not a raw HTML div, because it holds a
+       genuine interactive Refresh button in its top-right corner. ── */
+    .st-key-header-band {{
+        width: 100% !important; background: {primary} !important; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        padding: 20px 36px !important; box-sizing: border-box; display: flex !important; align-items: center !important;
     }}
-    .catalog-header .brand {{ display: flex; align-items: center; gap: 12px; }}
-    .catalog-header .icon {{ font-size: 22px; }}
-    .catalog-header .header-logo {{ height: 32px; width: auto; max-width: 140px; object-fit: contain; }}
-    .catalog-header .header-divider {{ width: 2px; height: 28px; background: {accent}; display: inline-block; }}
-    .catalog-header .title {{ color: {accent}; font-weight: 700; font-size: 19px; letter-spacing: -0.02em; }}
-    .catalog-header .subtitle {{ color: #C7D9EE; font-size: 12px; margin-top: 1px; }}
+    .st-key-header-band div[data-testid="stHorizontalBlock"] {{
+        display: flex !important; align-items: center !important; width: 100% !important;
+    }}
+    .header-brand {{ display: flex; align-items: center; gap: 14px; }}
+    .header-icon {{ font-size: 26px; }}
+    .header-logo {{ height: 42px; width: auto; max-width: 160px; object-fit: contain; }}
+    .header-divider {{ width: 2px; height: 38px; background: {accent}; display: inline-block; }}
+    .header-title {{ color: {accent}; font-weight: 700; font-size: 23px; letter-spacing: -0.02em; }}
+    .header-subtitle {{ color: #CFE3E1; font-size: 13px; margin-top: 3px; }}
 
-    /* Push page content below the fixed header. Applied to stMain — the
-       actual scrolling element (height:100dvh; overflow:auto) — not to the
-       outer stAppViewContainer, which is position:absolute + overflow:hidden
-       and doesn't scroll at all. Padding the wrong one pushes content past
-       the bottom of a fixed-size box with no way to scroll to reach it. */
-    section[data-testid="stMain"] {{ padding-top: 72px !important; }}
+    /* Refresh button living inside the header, right side — a solid gold
+       pill, matching the same pill language as the tag filters, so it pops
+       against the navy header instead of blending in as an outline. */
+    .st-key-header-band div[data-testid="stButton"] button {{
+        background: {accent} !important; border: none !important;
+        color: {primary} !important; border-radius: 999px !important; font-size: 12.5px !important;
+        font-weight: 700 !important; padding: 8px 18px !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important; transition: filter .12s, box-shadow .12s;
+    }}
+    .st-key-header-band div[data-testid="stButton"] button:hover {{
+        filter: brightness(1.08); box-shadow: 0 2px 6px rgba(0,0,0,0.3) !important;
+    }}
+
+    /* ── Tabs — styled to read as a continuation of the navy header: same
+       background, flush against the header's bottom edge, no default
+       Streamlit tab underline/border. Respects the page's normal side
+       padding (not edge-to-edge) — kept simple deliberately after the
+       edge-to-edge negative-margin version caused an unexplained rendering
+       issue with no browser available to debug it further. ── */
+    /* Pulls the tabs up to cancel the default gap Streamlit puts between
+       stacked top-level blocks (the header container and this one), so
+       they read as flush/attached rather than two separate bands. */
+    .stTabs {{ margin-top: -1rem !important; }}
+    .stTabs [data-baseweb="tab-list"] {{
+        background: {primary} !important; gap: 4px; padding: 0 20px !important; margin: 0 !important;
+        border-radius: 0 !important; border-bottom: none !important;
+    }}
+    .stTabs [data-baseweb="tab"] {{
+        background: transparent !important; color: #93B8D8 !important; font-size: 13.5px !important;
+        font-weight: 500 !important; padding: 14px 20px !important; border: none !important;
+    }}
+    .stTabs [aria-selected="true"] {{
+        color: {accent} !important; font-weight: 700 !important; border-bottom: 3px solid {accent} !important;
+    }}
+    .stTabs [data-baseweb="tab-highlight"] {{ display: none !important; }}
+    .stTabs [data-baseweb="tab-border"] {{ display: none !important; }}
+    .stTabs [data-baseweb="tab-panel"] {{ padding-top: 20px !important; }}
 
     /* ── KPI stat tiles ──────────────────────────────────────────────── */
     .kpi-card {{
@@ -133,7 +179,7 @@ def inject_css() -> None:
     /* ── Detail panel ─────────────────────────────────────────────────── */
     .detail-card {{
         background: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid {accent};
-        border-radius: 10px; padding: 22px 24px; position: sticky; top: 76px;
+        border-radius: 10px; padding: 22px 24px; position: sticky; top: 20px;
     }}
     .detail-header {{ display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }}
     .detail-name {{ font-size: 19px; font-weight: 700; color: {primary}; font-family: 'DM Mono', monospace; }}
@@ -196,22 +242,37 @@ def _logo_html() -> str:
             encoded = base64.b64encode(f.read()).decode("ascii")
         return f'<img class="header-logo" src="data:{mime};base64,{encoded}" alt="logo">'
     icon = getattr(config, "HEADER_ICON", "📚")
-    return f'<span class="icon">{html.escape(icon)}</span>'
+    return f'<span class="header-icon">{html.escape(icon)}</span>'
 
 
-def header() -> None:
-    st.markdown(f"""
-    <div class="catalog-header">
-      <div class="brand">
-        {_logo_html()}
-        <span class="header-divider"></span>
-        <div>
-          <div class="title">{html.escape(config.APP_TITLE)}</div>
-          <div class="subtitle">{html.escape(config.APP_SUBTITLE)}</div>
-        </div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+def header():
+    """Render the navy header (logo/title/tagline on the left) and return a
+    Streamlit column for the right side, so the caller can place a real
+    interactive widget there (e.g. a Refresh button) that visually sits in
+    the header's top-right corner. The whole thing — markdown title block
+    and the caller's widget alike — lives in one Streamlit block, so
+    there's no separate floating-element alignment to fight with.
+
+    key="header-band" is what makes this stylable: Streamlit turns a
+    container's key= directly into a `.st-key-header-band` class on that
+    container's own DOM element (verified against the installed frontend
+    bundle), which CSS targets directly — no ancestor :has() matching
+    needed, which turned out to be unreliable for this specific block."""
+    container = st.container(key="header-band")
+    with container:
+        left, right = st.columns([6, 1])
+        with left:
+            st.markdown(f"""
+            <div class="header-brand">
+              {_logo_html()}
+              <span class="header-divider"></span>
+              <div>
+                <div class="header-title">{html.escape(config.APP_TITLE)}</div>
+                <div class="header-subtitle">{html.escape(config.APP_SUBTITLE)}</div>
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+    return right
 
 
 
