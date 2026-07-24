@@ -127,6 +127,26 @@ def test_data_type_is_representative_mode(fixture_dir):
     assert mode_row["data_type"] == "NUMBER(38,0)"
 
 
+def test_column_name_grouping_is_case_insensitive(fixture_dir):
+    # A real warehouse won't be as consistently-cased as our synthetic
+    # fixture — the same logical column can show up as CUSTOMER_ID in one
+    # table and customer_id in another. Grouping must merge these into one
+    # catalog entry, not show "duplicate" rows differing only by case.
+    structure_df = pd.DataFrame([
+        ("DB1", "PUBLIC", "TABLE_A", "CUSTOMER_ID", "NUMBER(38,0)"),
+        ("DB1", "PUBLIC", "TABLE_B", "customer_id", "NUMBER(38,0)"),
+        ("DB2", "PUBLIC", "TABLE_C", "Customer_Id", "NUMBER(38,0)"),
+    ], columns=["TABLE_CATALOG", "TABLE_SCHEMA", "TABLE_NAME", "COLUMN_NAME", "DATA_TYPE"])
+    structure_df.to_csv(config.STRUCT_LOCAL_CSV["path"], index=False)
+
+    df, _ = data._build_catalog_and_health()
+    matches = df[df["column_name"].str.upper() == "CUSTOMER_ID"]
+    assert len(matches) == 1
+    row = matches.iloc[0]
+    assert row["column_name"] == "CUSTOMER_ID"  # normalized to uppercase
+    assert len(row["tables"]) == 3
+
+
 def test_join_grain_column_name_vs_schema_column(fixture_dir):
     config.JOIN_GRAIN = "column_name"
     df_col, _ = data._build_catalog_and_health()

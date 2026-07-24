@@ -414,13 +414,19 @@ def _canonicalize_usage(raw_df: pd.DataFrame, headers_found: dict) -> pd.DataFra
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _grain_key(row) -> str:
+    """column_name is uppercased for the key so the same logical column
+    grouped from different tables/databases (e.g. CUSTOMER_ID in one,
+    customer_id in another — common across a real warehouse, unlike our
+    all-uppercase synthetic demo data) collapses into a single catalog
+    entry instead of showing up as separate "duplicate" rows."""
     grain = config.JOIN_GRAIN
+    col = row["column_name"].upper()
     if grain == "column_name":
-        return row["column_name"]
+        return col
     if grain == "schema.column":
-        return f"{row['database']}.{row['schema']}.{row['column_name']}"
+        return f"{row['database']}.{row['schema']}.{col}"
     if grain == "table.column":
-        return f"{row['database']}.{row['schema']}.{row['table']}.{row['column_name']}"
+        return f"{row['database']}.{row['schema']}.{row['table']}.{col}"
     raise ValueError(f"Unknown JOIN_GRAIN: {grain!r}")
 
 
@@ -439,7 +445,9 @@ def _collapse_structure(structure_df: pd.DataFrame) -> pd.DataFrame:
     for key, group in df.groupby("_grain_key", sort=True):
         data_type = Counter(group["data_type"]).most_common(1)[0][0]
         rows.append({
-            "column_name": group["column_name"].iloc[0],
+            # Uppercased consistently, not "whichever row's casing sorted
+            # first" — see _grain_key's docstring.
+            "column_name": group["column_name"].iloc[0].upper(),
             "data_type": data_type,
             "tables": sorted(group["_table_fqn"].unique().tolist()),
             "databases": sorted(group["database"].unique().tolist()),
@@ -461,7 +469,7 @@ def _usage_grain_key(row) -> str:
     it; if that info is missing, falls back to the bare column name rather
     than failing — usage just won't match at the finer grain in that case."""
     grain = config.JOIN_GRAIN
-    col = row["column_name"]
+    col = row["column_name"].upper()  # match _grain_key's uppercasing
     if grain == "column_name":
         return col
     parts = row["table"].split(".") if row["table"] else []

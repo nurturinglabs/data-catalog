@@ -118,17 +118,26 @@ def inject_css() -> None:
 
     /* ── KPI stat tiles ──────────────────────────────────────────────── */
     .kpi-card {{
-        background: #fff; border: 1px solid #E2E8F0; border-radius: 10px;
-        padding: 16px 20px; box-shadow: 0 1px 3px rgba(15,23,42,0.05);
+        background: #fff; border: 1px solid #E2E8F0; border-radius: 12px;
+        padding: 18px 22px 20px; box-shadow: 0 1px 4px rgba(15,23,42,0.06);
         position: relative; overflow: hidden;
     }}
-    .kpi-card::before {{ content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }}
+    /* Top accent bar (not a left bar) — reads as a stat-tile "header",
+       distinct from the reverse-index/consumer list's left-border language
+       used elsewhere, so the two visual idioms don't blur together. */
+    .kpi-card::before {{
+        content: ""; position: absolute; left: 0; top: 0; right: 0; height: 4px;
+    }}
     .kpi-card.accent-primary::before {{ background: {primary}; }}
     .kpi-card.accent-yellow::before {{ background: {accent}; }}
-    .kpi-label {{ font-size: 11px; color: #64748B; text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 8px; font-weight: 500; }}
+    .kpi-icon {{ font-size: 17px; display: block; margin-bottom: 8px; line-height: 1; }}
+    .kpi-label {{ font-size: 11px; color: #64748B; text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 6px; font-weight: 600; }}
+    /* Sans, not mono: a standalone hero-style number reads better in the
+       font's default proportional figures — tabular/mono spacing is for
+       columns of numbers that need to align vertically, not this. */
     .kpi-value {{
-        font-size: 24px; font-weight: 700; color: {primary}; margin: 0; line-height: 1.2;
-        font-family: 'DM Mono', monospace; word-break: break-word;
+        font-size: 30px; font-weight: 700; color: {primary}; margin: 0; line-height: 1.15;
+        font-family: 'DM Sans', sans-serif; word-break: break-word;
     }}
 
     /* ── Browse rail (sidebar) ───────────────────────────────────────── */
@@ -278,12 +287,18 @@ def header():
 
 
 def kpi_row(metrics: list[dict]) -> None:
+    """Each metric dict: {"label": str, "value": str, "icon": str (optional),
+    "accent": "primary"|"yellow" (optional — defaults to alternating by
+    position if omitted)}."""
     cols = st.columns(len(metrics))
     for i, (col, m) in enumerate(zip(cols, metrics)):
-        accent_cls = "accent-primary" if i % 2 == 0 else "accent-yellow"
+        accent = m.get("accent") or ("primary" if i % 2 == 0 else "yellow")
+        accent_cls = f"accent-{accent}"
+        icon_html = f'<span class="kpi-icon">{html.escape(m["icon"])}</span>' if m.get("icon") else ""
         with col:
             st.markdown(f"""
             <div class="kpi-card {accent_cls}">
+              {icon_html}
               <p class="kpi-label">{html.escape(m['label'])}</p>
               <p class="kpi-value">{html.escape(str(m['value']))}</p>
             </div>

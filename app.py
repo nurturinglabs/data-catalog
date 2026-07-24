@@ -25,6 +25,11 @@ SORT_OPTIONS = {
     "# Tables": "_table_count",
 }
 
+# Columns used in only one table are excluded from every tab (see the
+# "used in most tables" business rule) — not interesting for a catalog
+# focused on shared/reused columns across the warehouse.
+MIN_TABLE_COUNT = 2
+
 st.set_page_config(
     page_title=f"{config.APP_TITLE}",
     page_icon="📚",
@@ -43,6 +48,7 @@ except (ValueError, data.DataSourceError) as exc:
     st.error(f"Could not load the catalog: {exc}")
     st.stop()
 
+catalog_df = catalog_df[catalog_df["tables"].map(len) >= MIN_TABLE_COUNT]
 catalog_df = catalog_df.reset_index(drop=True)
 catalog_df["_row_id"] = catalog_df.index
 
@@ -144,9 +150,9 @@ def render_database_view(tab_key: str, base_df, scope_label: str) -> None:
         busiest_value = "—"
 
     theme.kpi_row([
-        {"label": "Number of Columns", "value": f"{view_count}"},
-        {"label": "Columns with Descriptions", "value": f"{documented_count}"},
-        {"label": "Column used in most tables", "value": busiest_value},
+        {"label": "Number of Columns", "value": f"{view_count}", "icon": "📊", "accent": "primary"},
+        {"label": "Columns with Descriptions", "value": f"{documented_count}", "icon": "📝", "accent": "primary"},
+        {"label": "Column used in most tables", "value": busiest_value, "icon": "🔗", "accent": "yellow"},
     ])
 
     st.write("")
