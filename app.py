@@ -10,21 +10,6 @@ import config
 import data
 import theme
 
-# Sort options for the results table. st.dataframe's own column-header click
-# sort is a frontend-only feature with no callback into Python, so it can
-# only ever reorder whichever rows are currently loaded into the widget. To
-# guarantee sorting always covers the *entire* result set (not just "the
-# current page"), results are no longer paginated — the full filtered/sorted
-# set is rendered into one scrollable table, so both this explicit control
-# and clicking a column header operate on everything, not a subset.
-SORT_OPTIONS = {
-    "Column name": "column_name",
-    "Data type": "data_type",
-    "Has description": "documented",
-    "Approved": "approved",
-    "# Tables": "_table_count",
-}
-
 # Columns used in only one table are excluded from every tab (see the
 # "used in most tables" business rule) — not interesting for a catalog
 # focused on shared/reused columns across the warehouse.
@@ -68,62 +53,15 @@ with header_action_col:
         data.clear_cache()
         st.rerun()
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Per-tab filter row: search, documented-only, sort. Each tab gets its own
-# independent copy (unique widget keys per tab_key), so searching within one
-# database's tab doesn't affect any other tab.
-# ─────────────────────────────────────────────────────────────────────────────
-
-def render_filters(tab_key: str):
-    with st.container():
-        theme.scope_marker("tags-scope")
-        row_cols = st.columns([3, 1, 2, 1, 1])
-        with row_cols[0]:
-            st.text_input(
-                "Search", placeholder="🔍 Search columns or descriptions",
-                label_visibility="collapsed", key=f"search_text_{tab_key}",
-            )
-        with row_cols[1]:
-            active_all = not st.session_state.get(f"documented_only_{tab_key}", False)
-            if theme.toggle_button(
-                "All", key=f"filter_all_{tab_key}", active=active_all, use_container_width=False,
-            ):
-                st.session_state[f"documented_only_{tab_key}"] = False
-                st.rerun()
-        with row_cols[2]:
-            active_doc = st.session_state.get(f"documented_only_{tab_key}", False)
-            if theme.toggle_button(
-                "With Descriptions", key=f"filter_documented_{tab_key}",
-                active=active_doc, use_container_width=False,
-            ):
-                st.session_state[f"documented_only_{tab_key}"] = True
-                st.rerun()
-        with row_cols[3]:
-            st.selectbox(
-                "Sort by", list(SORT_OPTIONS.keys()),
-                key=f"sort_by_{tab_key}", label_visibility="collapsed",
-            )
-        with row_cols[4]:
-            st.selectbox(
-                "Direction", ["Ascending", "Descending"],
-                key=f"sort_dir_{tab_key}", label_visibility="collapsed",
-            )
-
-    return (
-        st.session_state.get(f"search_text_{tab_key}", ""),
-        st.session_state.get(f"documented_only_{tab_key}", False),
-        st.session_state.get(f"sort_by_{tab_key}", "Column name"),
-        st.session_state.get(f"sort_dir_{tab_key}", "Ascending") == "Ascending",
-    )
-
 
 def render_database_view(tab_key: str, base_df, scope_label: str) -> None:
-    """Render this tab's own filter row, KPIs, results table, and detail
+    """Render this tab's own KPIs, search box, results table, and detail
     panel for base_df (already scoped to this tab's database). tab_key must
     be unique per tab — st.tabs() renders every tab body on every rerun (not
     just the visible one), so widget keys across tabs would collide without
     this suffix on every one of them."""
-    search_text, documented_only, sort_label, sort_ascending = render_filters(tab_key)
+    search_key = f"search_text_{tab_key}"
+    search_text = st.session_state.get(search_key, "")
 
     df = base_df
     if search_text:
@@ -133,13 +71,7 @@ def render_database_view(tab_key: str, base_df, scope_label: str) -> None:
             | df["description"].str.lower().str.contains(needle, regex=False)
         )
         df = df[mask]
-    if documented_only:
-        df = df[df["documented"]]
-
-    sort_field = SORT_OPTIONS[sort_label]
-    if sort_field == "_table_count":
-        df = df.assign(_table_count=df["tables"].map(len))
-    df = df.sort_values(sort_field, ascending=sort_ascending, kind="stable").reset_index(drop=True)
+    df = df.sort_values("column_name", kind="stable").reset_index(drop=True)
 
     view_count = len(df)
     documented_count = int(df["documented"].sum())
@@ -162,6 +94,10 @@ def render_database_view(tab_key: str, base_df, scope_label: str) -> None:
 
     with results_col:
         st.caption(f"{scope_label} — {view_count} column{'s' if view_count != 1 else ''}")
+        st.text_input(
+            "Search", placeholder="🔍 Search columns or descriptions",
+            label_visibility="collapsed", key=search_key,
+        )
 
         selected_row_id = st.session_state.get(selected_key)
 
@@ -219,25 +155,46 @@ def render_database_view(tab_key: str, base_df, scope_label: str) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Database tabs — "All" (optionally scoped to one or more databases) plus one
-# tab per config.STRUCTURE_DATABASES entry. Never hardcoded — a database
-# added to that config list picks up its own tab automatically. Styled (see
-# theme.inject_css) to read as a continuation of the navy header band.
+# Database tabs — "All" (optionally scoped to one or more databases via
+# toggle pills) plus one tab per config.STRUCTURE_DATABASES entry. Never
+# hardcoded — a database added to that config list picks up its own tab
+# automatically. Styled (see theme.inject_css) to read as a continuation of
+# the navy header band.
 # ─────────────────────────────────────────────────────────────────────────────
 
 tab_labels = ["All"] + list(config.STRUCTURE_DATABASES)
 tabs = st.tabs(tab_labels)
 
 with tabs[0]:
-    selected_dbs = st.multiselect(
-        "Filter to one or more databases (optional)",
-        options=config.STRUCTURE_DATABASES,
-        key="all_tab_databases",
-    )
+    st.session_state.setdefault("all_tab_databases", set())
+    selected_dbs = st.session_state["all_tab_databases"]
+
+    with st.container():
+        theme.scope_marker("tags-scope")
+        db_labels = ["All databases"] + list(config.STRUCTURE_DATABASES)
+        db_widths = [len(label) + 4 for label in db_labels]
+        db_cols = st.columns(db_widths + [sum(db_widths) // 2])
+
+        with db_cols[0]:
+            if theme.toggle_button(
+                "All databases", key="db_pill_all",
+                active=(len(selected_dbs) == 0), use_container_width=True,
+            ):
+                st.session_state["all_tab_databases"] = set()
+                st.rerun()
+        for i, db in enumerate(config.STRUCTURE_DATABASES):
+            with db_cols[i + 1]:
+                active = db in selected_dbs
+                if theme.toggle_button(db, key=f"db_pill_{db}", active=active, use_container_width=True):
+                    updated = set(selected_dbs)
+                    updated.discard(db) if active else updated.add(db)
+                    st.session_state["all_tab_databases"] = updated
+                    st.rerun()
+
     all_df = catalog_df
     if selected_dbs:
         all_df = all_df[all_df["databases"].map(lambda lst: any(db in lst for db in selected_dbs))]
-        scope_label = ", ".join(selected_dbs)
+        scope_label = ", ".join(sorted(selected_dbs))
     else:
         scope_label = "All databases"
     render_database_view("all", all_df, scope_label)
