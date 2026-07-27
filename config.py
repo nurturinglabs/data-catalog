@@ -10,8 +10,17 @@ lives here. app.py and data.py must never reference a concrete data source.
 # ═══════════════════════════════════════════════════════════════════════════
 
 # ── Layer 1 — descriptions (curated) ─────────────────────────────────────────
-# One of: "csv_local" | "excel_local" | "excel_stage" | "snowflake_table"
-DESCRIPTIONS_SOURCE = "csv_local"
+# One of: "csv_local" | "excel_local" | "excel_stage" | "snowflake_table" |
+# "workflow_table"
+#
+# "workflow_table" reads descriptions from the Layer 4 documentation
+# workflow below (the Documentation workspace page's assignment table),
+# filtered to rows with status == "Approved" — this is the single source of
+# truth the workspace page writes to and the catalog reads from, so a
+# newly-approved description shows up here with no separate store to keep
+# in sync. This is the default; the other sources remain available for
+# porting to a standalone descriptions feed instead.
+DESCRIPTIONS_SOURCE = "workflow_table"
 
 DESC_CSV_LOCAL = {
     "path": "sample_data/descriptions.csv",
@@ -34,13 +43,19 @@ DESC_SNOWFLAKE_TABLE = {
 # Canonical field -> header name in the raw description source.
 # Required: column_name, description. Optional: tags, steward, approved.
 # approved accepts TRUE/YES/Y/1/APPROVED/X (case-insensitive); anything else
-# (including blank) is treated as not approved.
+# (including blank) is treated as not approved. Mapped to the workflow
+# table's own "status" column here — its value is literally the string
+# "Approved" once a row clears review, which already reads as truthy above,
+# so no separate boolean column is needed.
+#
+# Switching DESCRIPTIONS_SOURCE back to "csv_local" (or another source)
+# needs this map updated to match that source's own headers, e.g.:
+#   {"column_name": "Column Name", "description": "Description",
+#    "tags": "Tags", "steward": "Steward", "approved": "Approved"}
 DESCRIPTION_MAP = {
-    "column_name": "Column Name",
-    "description": "Description",
-    "tags": "Tags",
-    "steward": "Steward",
-    "approved": "Approved",
+    "column_name": "column_name",
+    "description": "description",
+    "approved": "status",
 }
 
 TAGS_DELIMITER = ","
@@ -159,6 +174,25 @@ USAGE_MAP = {
     "last_used": "last_used",
     "query_count": "query_count",
 }
+
+# ── Layer 4 — documentation workflow (write side: assignment + authoring) ───
+# The Documentation workspace page's own read/write store: a coordinator
+# assigns columns to people, people fill in descriptions, and an approved
+# row becomes the description Layer 1 reads (see DESCRIPTIONS_SOURCE above).
+# One of: "local_csv" | "snowflake_table"
+WORKFLOW_SOURCE = "local_csv"
+
+WORKFLOW_LOCAL_CSV = {
+    "path": "sample_data/assignments.csv",
+}
+
+WORKFLOW_TABLE = {
+    "table": "CATALOG_DB.GOVERNANCE.COLUMN_ASSIGNMENTS",
+}
+
+# People available to assign columns to, until this is pulled from a real
+# directory (e.g. a Snowflake role/user list).
+WORKFLOW_ASSIGNEES = ["Priya", "Deepak", "Marcus", "Elena"]
 
 # ── Join / display ───────────────────────────────────────────────────────────
 # One of: "column_name" | "schema.column" | "table.column"

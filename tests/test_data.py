@@ -70,6 +70,18 @@ def fixture_dir(tmp_path):
     config.STRUCT_LOCAL_CSV = {"path": str(structure_path)}
     config.DESC_CSV_LOCAL = {"path": str(descriptions_path)}
     config.DESCRIPTIONS_SOURCE = "csv_local"
+    # These fixtures write CSV-style headers ("Column Name", "Description",
+    # ...) — DESCRIPTION_MAP's own default now points at the workflow
+    # table's headers instead (DESCRIPTIONS_SOURCE defaults to
+    # "workflow_table"), so it must be pinned back to the CSV-style map for
+    # the duration of these csv_local-source tests.
+    config.DESCRIPTION_MAP = {
+        "column_name": "Column Name",
+        "description": "Description",
+        "tags": "Tags",
+        "steward": "Steward",
+        "approved": "Approved",
+    }
     # No usage.csv by default — points at a path that doesn't exist, so
     # every test gets a deterministic graceful "unavailable" fallback
     # (consumers=[]) unless it explicitly opts in with its own usage fixture.

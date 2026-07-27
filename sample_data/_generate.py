@@ -1,14 +1,19 @@
 """
-Regenerates the three synthetic demo sources: structure.csv,
-descriptions.csv, and usage.csv. Run with: python sample_data/_generate.py
+Regenerates the synthetic demo sources: structure.csv, descriptions.csv,
+usage.csv, and assignments.csv. Run with: python sample_data/_generate.py
 
 structure.csv is INFORMATION_SCHEMA-shaped physical schema for 3 synthetic
 databases. descriptions.csv is a partial, human-authored description layer
 covering roughly two-thirds of the distinct column names, so the demo shows a
-non-trivial reverse index and coverage < 100%. usage.csv is synthetic
+non-trivial reverse index and coverage < 100% (kept for DESCRIPTIONS_SOURCE
+values other than the default "workflow_table"). usage.csv is synthetic
 "who reads this column" data spanning multiple consumer types, with a couple
 of load-bearing columns, some single-consumer columns, and several documented
-columns with no recorded usage at all.
+columns with no recorded usage at all. assignments.csv is the Documentation
+workspace's own COLUMN_ASSIGNMENTS table — the default descriptions source —
+seeded from the same structure with a realistic spread of statuses and
+assignees; a handful of structural columns are deliberately left out of it so
+the workspace page's live auto-seed/reconcile behavior has something to do.
 """
 
 import datetime as _dt
@@ -224,6 +229,101 @@ def build_descriptions_df() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+# People available to assign columns to — mirrors config.WORKFLOW_ASSIGNEES.
+WORKFLOW_ASSIGNEES = ["Priya", "Deepak", "Marcus", "Elena"]
+
+# Structural columns deliberately left OUT of assignments.csv entirely, so
+# the Documentation workspace page's live auto-seed/reconcile step has real
+# work to do on first load instead of finding every column already tracked.
+OMITTED_FROM_ASSIGNMENTS = {"ZIP_CODE", "SHIPPING_ADDRESS", "LAST_SCORED_AT", "POSTED_AT"}
+
+
+def _column_index() -> dict:
+    """column_name -> (table_count, comma-joined sorted unique databases)."""
+    per_col_tables: dict = {}
+    for (db, schema, table), columns in TABLES.items():
+        for col in columns:
+            per_col_tables.setdefault(col, set()).add((db, schema, table))
+    return {
+        col: (len(tbls), ", ".join(sorted({db for db, _, _ in tbls})))
+        for col, tbls in per_col_tables.items()
+    }
+
+
+def build_assignments_df() -> pd.DataFrame:
+    col_index = _column_index()
+    distinct_cols = sorted(col_index)
+    rows = []
+
+    # Columns already documented in DESCRIPTIONS — approved ones map
+    # straight to status "Approved"; the rest ("has a draft, not yet
+    # signed off") alternate Submitted / In progress for a realistic split.
+    documented_cols = [c for c in distinct_cols if c in DESCRIPTIONS]
+    for i, col in enumerate(documented_cols):
+        desc, _tags, _steward, approved = DESCRIPTIONS[col]
+        table_count, data_product = col_index[col]
+        assignee = WORKFLOW_ASSIGNEES[i % len(WORKFLOW_ASSIGNEES)]
+        if approved:
+            status = "Approved"
+        else:
+            status = "Submitted" if i % 2 == 0 else "In progress"
+        rows.append({
+            "column_name": col, "data_product": data_product, "table_count": table_count,
+            "description": desc, "assigned_to": assignee, "status": status,
+            "origin": "structure", "orphaned": False,
+            "updated_by": assignee, "updated_at": _days_ago(5 + i % 60),
+        })
+
+    # Undocumented columns — a realistic spread of Unassigned / Assigned
+    # (claimed, description not started) / In progress (claimed, partial
+    # draft). A handful are skipped entirely (OMITTED_FROM_ASSIGNMENTS).
+    undocumented_cols = [
+        c for c in distinct_cols if c not in DESCRIPTIONS and c not in OMITTED_FROM_ASSIGNMENTS
+    ]
+    for i, col in enumerate(undocumented_cols):
+        table_count, data_product = col_index[col]
+        bucket = i % 3
+        if bucket == 0:
+            status, assignee, desc = "Unassigned", "", ""
+        elif bucket == 1:
+            status, assignee, desc = "Assigned", WORKFLOW_ASSIGNEES[i % len(WORKFLOW_ASSIGNEES)], ""
+        else:
+            assignee = WORKFLOW_ASSIGNEES[i % len(WORKFLOW_ASSIGNEES)]
+            status, desc = "In progress", f"Draft: {col.replace('_', ' ').title()} — needs review."
+        rows.append({
+            "column_name": col, "data_product": data_product, "table_count": table_count,
+            "description": desc, "assigned_to": assignee, "status": status,
+            "origin": "structure", "orphaned": False,
+            "updated_by": assignee, "updated_at": _days_ago(2 + i % 30) if assignee else "",
+        })
+
+    # Manual row — a business-glossary term with no physical column, added
+    # straight by a coordinator.
+    rows.append({
+        "column_name": "NET_REVENUE_MARGIN", "data_product": "FINANCE_DB", "table_count": 0,
+        "description": (
+            "Business-defined ratio of net revenue to gross revenue, used in "
+            "board reporting. Not a physical column — defined here for the glossary."
+        ),
+        "assigned_to": "Priya", "status": "Submitted", "origin": "manual", "orphaned": False,
+        "updated_by": "Priya", "updated_at": _days_ago(10),
+    })
+
+    # Orphaned row — references a column no longer present in structure.csv
+    # (superseded), kept rather than deleted so the written description isn't lost.
+    rows.append({
+        "column_name": "LEGACY_ACCOUNT_CODE", "data_product": "FINANCE_DB", "table_count": 1,
+        "description": "Legacy GL account code, superseded by ACCOUNT_CODE.",
+        "assigned_to": "Marcus", "status": "Approved", "origin": "structure", "orphaned": True,
+        "updated_by": "Marcus", "updated_at": _days_ago(200),
+    })
+
+    return pd.DataFrame(rows, columns=[
+        "column_name", "data_product", "table_count", "description", "assigned_to",
+        "status", "origin", "orphaned", "updated_by", "updated_at",
+    ])
+
+
 def build_usage_df() -> pd.DataFrame:
     rows = []
     for col, table, consumer_name, consumer_type, days_ago, query_count in USAGE_ROWS:
@@ -242,6 +342,7 @@ def main():
     structure_df = build_structure_df()
     descriptions_df = build_descriptions_df()
     usage_df = build_usage_df()
+    assignments_df = build_assignments_df()
 
     distinct_cols = {col for cols in TABLES.values() for col in cols}
     n_dbs = len({db for db, _, _ in TABLES})
@@ -258,13 +359,30 @@ def main():
     assert len(usage_consumer_types) >= 5, "need all 5 consumer types represented"
     assert usage_cols <= distinct_cols, "usage.csv references a column not in structure.csv"
 
+    assignment_statuses = set(assignments_df["status"])
+    approved_pct = (assignments_df["status"] == "Approved").mean() * 100
+    assert {"Unassigned", "Assigned", "In progress", "Submitted", "Approved"} <= assignment_statuses
+    assert approved_pct < 100, "assignments.csv coverage must be < 100% for the metrics to be meaningful"
+    assert (assignments_df["origin"] == "manual").sum() >= 1, "need >= 1 manual row"
+    assert (assignments_df["orphaned"]).sum() >= 1, "need >= 1 orphaned row"
+    assigned_cols = set(assignments_df["column_name"]) - {"NET_REVENUE_MARGIN", "LEGACY_ACCOUNT_CODE"}
+    assert assigned_cols <= distinct_cols, "assignments.csv references a column not in structure.csv"
+    assert OMITTED_FROM_ASSIGNMENTS & distinct_cols == OMITTED_FROM_ASSIGNMENTS, (
+        "OMITTED_FROM_ASSIGNMENTS must reference real structural columns"
+    )
+    assert distinct_cols - assigned_cols == OMITTED_FROM_ASSIGNMENTS, (
+        "every structural column must be either assigned or deliberately omitted"
+    )
+
     structure_path = os.path.join(HERE, "structure.csv")
     descriptions_path = os.path.join(HERE, "descriptions.csv")
     usage_path = os.path.join(HERE, "usage.csv")
+    assignments_path = os.path.join(HERE, "assignments.csv")
 
     structure_df.to_csv(structure_path, index=False)
     descriptions_df.to_csv(descriptions_path, index=False)
     usage_df.to_csv(usage_path, index=False)
+    assignments_df.to_csv(assignments_path, index=False)
 
     print(f"Wrote {structure_path} ({len(structure_df)} rows, "
           f"{n_dbs} databases, {n_schemas} schemas, {n_tables} tables, "
@@ -274,6 +392,9 @@ def main():
           f"{len(distinct_cols) - len(descriptions_df)} left undocumented)")
     print(f"Wrote {usage_path} ({len(usage_df)} usage rows across "
           f"{len(usage_cols)} columns, {len(usage_consumer_types)} consumer types)")
+    print(f"Wrote {assignments_path} ({len(assignments_df)} rows, "
+          f"{approved_pct:.0f}% approved, {len(OMITTED_FROM_ASSIGNMENTS)} columns "
+          f"omitted for live auto-seed demo)")
 
 
 if __name__ == "__main__":

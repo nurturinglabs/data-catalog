@@ -188,6 +188,56 @@ def _read_descriptions_snowflake_table() -> pd.DataFrame:
         raise DataSourceError(f"Could not read table '{cfg['table']}': {exc}") from exc
 
 
+def _read_workflow_local_csv() -> pd.DataFrame:
+    cfg = config.WORKFLOW_LOCAL_CSV
+    try:
+        return pd.read_csv(cfg["path"])
+    except Exception as exc:
+        raise DataSourceError(f"Could not read local CSV '{cfg['path']}': {exc}") from exc
+
+
+def _read_workflow_snowflake_table() -> pd.DataFrame:
+    cfg = config.WORKFLOW_TABLE
+    try:
+        from snowflake.snowpark.context import get_active_session
+        session = get_active_session()
+        return session.table(cfg["table"]).to_pandas()
+    except Exception as exc:
+        raise DataSourceError(f"Could not read table '{cfg['table']}': {exc}") from exc
+
+
+def _read_raw_workflow() -> pd.DataFrame:
+    """The Layer 4 documentation-workflow table, unfiltered — shared by the
+    Documentation workspace page (workflow.py, all rows/statuses) and, here,
+    by the workflow-backed descriptions source (rows filtered to Approved
+    just below)."""
+    if config.WORKFLOW_SOURCE == "local_csv":
+        return _read_workflow_local_csv()
+    if config.WORKFLOW_SOURCE == "snowflake_table":
+        return _read_workflow_snowflake_table()
+    raise DataSourceError(f"Unknown WORKFLOW_SOURCE: {config.WORKFLOW_SOURCE!r}")
+
+
+def _read_descriptions_workflow_table() -> pd.DataFrame:
+    """Descriptions sourced from the documentation workflow table, filtered
+    to Approved rows only — the catalog must never surface a description
+    that hasn't cleared review (see DESCRIPTIONS_SOURCE's docstring in
+    config.py). Rows are returned with their original workflow column
+    headers untouched; DESCRIPTION_MAP maps "approved" to the workflow's own
+    "status" header, and _parse_bool's truthy-token set already includes
+    "approved" — so filtering to Approved here means every row that
+    survives is, trivially and correctly, marked approved downstream too."""
+    raw = _read_raw_workflow()
+    ci_lookup = _ci_header_lookup(raw.columns)
+    status_header = ci_lookup.get("status")
+    if status_header is None:
+        raise DataSourceError(
+            "Workflow table has no 'status' column — cannot filter to Approved rows."
+        )
+    is_approved = raw[status_header].astype(str).str.strip().str.casefold() == "approved"
+    return raw[is_approved]
+
+
 def _build_information_schema_query() -> str:
     query = config.STRUCTURE_QUERY.strip()
     if config.DATABASE_ALLOWLIST:
@@ -330,6 +380,8 @@ def _read_raw_descriptions() -> pd.DataFrame:
         return _read_excel_stage()
     if config.DESCRIPTIONS_SOURCE == "snowflake_table":
         return _read_descriptions_snowflake_table()
+    if config.DESCRIPTIONS_SOURCE == "workflow_table":
+        return _read_descriptions_workflow_table()
     raise DataSourceError(f"Unknown DESCRIPTIONS_SOURCE: {config.DESCRIPTIONS_SOURCE!r}")
 
 

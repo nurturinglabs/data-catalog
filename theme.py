@@ -42,16 +42,47 @@ def inject_css() -> None:
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono&display=swap');
     html, body, [class*="css"] {{ font-family: 'DM Sans', sans-serif; }}
     .block-container {{
-        padding-top: 0 !important; padding-bottom: 4rem !important;
+        /* Streamlit's own header is position:absolute over the top of the
+           page (transparent + click-through when it has nothing to show,
+           opaque + interactive when e.g. the sidebar's expand button needs
+           to appear — see the note below) — this reserves its real height
+           so that opaque state never overlaps our content. */
+        padding-top: 3.75rem !important; padding-bottom: 4rem !important;
         max-width: 100% !important; padding-left: 2.25rem !important; padding-right: 2.25rem !important;
     }}
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}}
     div[data-testid="stVerticalBlock"] > div {{ gap: 0.5rem; }}
     code {{ font-family: 'DM Mono', monospace; }}
 
-    /* Hide Streamlit's own top toolbar — our header replaces it */
-    header[data-testid="stHeader"], div[data-testid="stAppHeader"] {{ display: none !important; }}
-    section[data-testid="stMain"] {{ padding-top: 0 !important; }}
+    /* Streamlit's own top header/toolbar — our navy header band replaces
+       its visual chrome, but the header ITSELF must stay in the DOM: when
+       the sidebar page-nav is collapsed, its only "expand again" control
+       (data-testid="stExpandSidebarButton") renders *inside* this header's
+       left section (confirmed against the installed frontend bundle) — an
+       earlier version of this rule did `display: none` on the whole
+       header, which silently made a collapsed sidebar impossible to ever
+       reopen. So: keep the header, just strip it down to near-nothing and
+       hide only the specific pieces we don't want (Deploy button, the
+       running-status widget, the "⋮" menu). */
+    header[data-testid="stHeader"] {{ background: transparent !important; box-shadow: none !important; }}
+    [data-testid="stAppDeployButton"], [data-testid="stStatusWidget"] {{ display: none !important; }}
+
+    /* ── Sidebar page nav (Catalog / Documentation workspace) — light
+       branding on Streamlit's own multipage nav, via its documented stable
+       testids (stSidebarNav*). No "active page" hook is exposed as a
+       queryable DOM attribute (verified against the installed frontend
+       bundle — isActive only ever changes an internal styled-components
+       font-weight, not a class/data-attr), so the current page isn't
+       highlighted distinctly here — an acceptable, deliberately small gap
+       rather than chasing an unstable hook. ── */
+    section[data-testid="stSidebar"] {{ background: #F8FAFC; border-right: 1px solid #E2E8F0; }}
+    div[data-testid="stSidebarNavItems"] {{ padding-top: 14px; }}
+    [data-testid="stSidebarNavLink"] {{
+        color: {primary} !important; font-size: 13.5px !important; font-weight: 500 !important;
+        border-radius: 6px !important;
+    }}
+    [data-testid="stSidebarNavLinkContainer"] {{ margin: 2px 10px !important; }}
+    [data-testid="stSidebarNavLink"]:hover {{ background: #E6F1FB !important; }}
 
     /* ── Header band — a normal in-flow block at the top of the page (not
        position:fixed — that technique proved unreliable across several
