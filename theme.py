@@ -33,6 +33,11 @@ import config
 USAGE_ACCENT = "#1A6EB5"  # deliberately distinct from ACCENT_COLOR (gold),
 # so the "Used by" list never visually blurs into the gold table reverse-index.
 
+# The two top-level views, in menu order — the single source of truth for
+# both header()'s inline nav menu and app.py's view -> render() dispatch,
+# so the label list is never defined in more than one place.
+NAV_ITEMS = ["Catalog", "Documentation workspace"]
+
 
 def inject_css() -> None:
     primary = config.PRIMARY_COLOR
@@ -42,12 +47,7 @@ def inject_css() -> None:
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono&display=swap');
     html, body, [class*="css"] {{ font-family: 'DM Sans', sans-serif; }}
     .block-container {{
-        /* Streamlit's own header is position:absolute over the top of the
-           page (transparent + click-through when it has nothing to show,
-           opaque + interactive when e.g. the sidebar's expand button needs
-           to appear — see the note below) — this reserves its real height
-           so that opaque state never overlaps our content. */
-        padding-top: 3.75rem !important; padding-bottom: 4rem !important;
+        padding-top: 1.5rem !important; padding-bottom: 4rem !important;
         max-width: 100% !important; padding-left: 2.25rem !important; padding-right: 2.25rem !important;
     }}
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}}
@@ -55,34 +55,17 @@ def inject_css() -> None:
     code {{ font-family: 'DM Mono', monospace; }}
 
     /* Streamlit's own top header/toolbar — our navy header band replaces
-       its visual chrome, but the header ITSELF must stay in the DOM: when
-       the sidebar page-nav is collapsed, its only "expand again" control
-       (data-testid="stExpandSidebarButton") renders *inside* this header's
-       left section (confirmed against the installed frontend bundle) — an
-       earlier version of this rule did `display: none` on the whole
-       header, which silently made a collapsed sidebar impossible to ever
-       reopen. So: keep the header, just strip it down to near-nothing and
-       hide only the specific pieces we don't want (Deploy button, the
-       running-status widget, the "⋮" menu). */
-    header[data-testid="stHeader"] {{ background: transparent !important; box-shadow: none !important; }}
-    [data-testid="stAppDeployButton"], [data-testid="stStatusWidget"] {{ display: none !important; }}
+       its visual chrome entirely. This app has no sidebar anywhere (page
+       switching is the themed pill row below, not st.navigation/pages/),
+       so — unlike an earlier version of this rule — there's no "expand
+       sidebar" control that could ever need to live in this space; it's
+       safe to collapse it outright. */
+    header[data-testid="stHeader"] {{ background: transparent !important; height: 0 !important; min-height: 0 !important; overflow: hidden !important; }}
 
-    /* ── Sidebar page nav (Catalog / Documentation workspace) — light
-       branding on Streamlit's own multipage nav, via its documented stable
-       testids (stSidebarNav*). No "active page" hook is exposed as a
-       queryable DOM attribute (verified against the installed frontend
-       bundle — isActive only ever changes an internal styled-components
-       font-weight, not a class/data-attr), so the current page isn't
-       highlighted distinctly here — an acceptable, deliberately small gap
-       rather than chasing an unstable hook. ── */
-    section[data-testid="stSidebar"] {{ background: #F8FAFC; border-right: 1px solid #E2E8F0; }}
-    div[data-testid="stSidebarNavItems"] {{ padding-top: 14px; }}
-    [data-testid="stSidebarNavLink"] {{
-        color: {primary} !important; font-size: 13.5px !important; font-weight: 500 !important;
-        border-radius: 6px !important;
-    }}
-    [data-testid="stSidebarNavLinkContainer"] {{ margin: 2px 10px !important; }}
-    [data-testid="stSidebarNavLink"]:hover {{ background: #E6F1FB !important; }}
+    /* Page nav (Catalog / Documentation workspace) now lives inline inside
+       the navy header band itself — see .st-key-header-nav below,
+       alongside the header's own styling — rather than as a standalone
+       pill row above/below it. */
 
     /* ── Header band — a normal in-flow block at the top of the page (not
        position:fixed — that technique proved unreliable across several
@@ -109,17 +92,30 @@ def inject_css() -> None:
     .header-title {{ color: {accent}; font-weight: 700; font-size: 23px; letter-spacing: -0.02em; }}
     .header-subtitle {{ color: #CFE3E1; font-size: 13px; margin-top: 3px; }}
 
-    /* Refresh button living inside the header, right side — a solid gold
-       pill, matching the same pill language as the tag filters, so it pops
-       against the navy header instead of blending in as an outline. */
-    .st-key-header-band div[data-testid="stButton"] button {{
-        background: {accent} !important; border: none !important;
-        color: {primary} !important; border-radius: 999px !important; font-size: 12.5px !important;
-        font-weight: 700 !important; padding: 8px 18px !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important; transition: filter .12s, box-shadow .12s;
+    /* ── Page nav menu, inline in the header (Catalog / Documentation
+       workspace) — real menu chips, not plain colored text: a soft
+       translucent-white highlight on hover, and a stronger translucent
+       highlight + gold text + gold bottom rule marking the active item, so
+       it reads as a proper nav bar rather than a couple of links. ── */
+    .st-key-header-nav div[data-testid="stButton"] {{
+        display: flex !important; align-items: center !important;
     }}
-    .st-key-header-band div[data-testid="stButton"] button:hover {{
-        filter: brightness(1.08); box-shadow: 0 2px 6px rgba(0,0,0,0.3) !important;
+    .st-key-header-nav div[data-testid="stButton"] button {{
+        border: none !important; box-shadow: none !important;
+        border-radius: 8px !important; font-size: 14px !important; font-weight: 600 !important;
+        padding: 10px 18px !important; white-space: nowrap !important;
+        border-bottom: 3px solid transparent !important;
+        transition: background-color .12s, color .12s;
+    }}
+    .st-key-header-nav div[data-testid="stButton"] button[data-testid="stBaseButton-secondary"] {{
+        background: transparent !important; color: #B8D4EC !important;
+    }}
+    .st-key-header-nav div[data-testid="stButton"] button[data-testid="stBaseButton-secondary"]:hover {{
+        background: rgba(255,255,255,0.10) !important; color: #fff !important;
+    }}
+    .st-key-header-nav div[data-testid="stButton"] button[data-testid="stBaseButton-primary"] {{
+        background: rgba(255,255,255,0.16) !important; color: {accent} !important;
+        border-bottom: 3px solid {accent} !important;
     }}
 
     /* ── Tabs — styled to read as a continuation of the navy header: same
@@ -285,22 +281,32 @@ def _logo_html() -> str:
     return f'<span class="header-icon">{html.escape(icon)}</span>'
 
 
-def header():
-    """Render the navy header (logo/title/tagline on the left) and return a
-    Streamlit column for the right side, so the caller can place a real
-    interactive widget there (e.g. a Refresh button) that visually sits in
-    the header's top-right corner. The whole thing — markdown title block
-    and the caller's widget alike — lives in one Streamlit block, so
-    there's no separate floating-element alignment to fight with.
+_NAV_ICONS = {"Catalog": "📚", "Documentation workspace": "📝"}
 
-    key="header-band" is what makes this stylable: Streamlit turns a
-    container's key= directly into a `.st-key-header-band` class on that
-    container's own DOM element (verified against the installed frontend
-    bundle), which CSS targets directly — no ancestor :has() matching
-    needed, which turned out to be unreliable for this specific block."""
+
+def header(nav_items: list[str] | None = None) -> None:
+    """Render the navy header: logo/title on the left, an optional inline
+    nav menu on the right (Catalog / Documentation workspace, e.g.) styled
+    as real menu chips — a background highlight on hover, a stronger
+    highlight + gold text on the active item — not just colored text.
+
+    When nav_items is given, clicking one updates
+    st.session_state["active_view"] and reruns immediately — the caller
+    (app.py's router) picks up the new value on its next run without
+    needing to handle the click itself. This is why the same two labels
+    get passed from both views/catalog.py and views/workspace.py: whichever
+    view happens to be showing renders the *same* menu, just reflecting
+    whichever one is currently active.
+
+    key="header-band" (and, for the nav sub-region, key="header-nav") is
+    what makes this stylable: Streamlit turns a container's key= directly
+    into a stable `.st-key-<name>` class on that container's own DOM
+    element (verified against the installed frontend bundle), which CSS
+    targets directly — no ancestor :has() matching needed, which turned out
+    to be unreliable for this specific block."""
     container = st.container(key="header-band")
     with container:
-        left, right = st.columns([6, 1])
+        left, nav_col = st.columns([2.4, 5.6])
         with left:
             st.markdown(f"""
             <div class="header-brand">
@@ -312,7 +318,26 @@ def header():
               </div>
             </div>
             """, unsafe_allow_html=True)
-    return right
+        if nav_items:
+            with nav_col:
+                active = st.session_state.get("active_view", nav_items[0])
+                nav_container = st.container(key="header-nav")
+                with nav_container:
+                    display_labels = [f"{_NAV_ICONS.get(v, '')} {v}".strip() for v in nav_items]
+                    widths = [len(v) + 4 for v in display_labels]
+                    # A leading spacer (not trailing) pushes the items to the
+                    # right edge of nav_col — i.e. the right edge of the
+                    # header itself — and gap=None sits them flush against
+                    # each other instead of Streamlit's default column gutter.
+                    cols = st.columns([max(sum(widths), 1)] + widths, gap=None)
+                    for col, label, display in zip(cols[1:], nav_items, display_labels):
+                        with col:
+                            if toggle_button(
+                                display, key=f"header_nav_{label}",
+                                active=(active == label), use_container_width=False,
+                            ):
+                                st.session_state["active_view"] = label
+                                st.rerun()
 
 
 
@@ -426,6 +451,25 @@ def toggle_button(label: str, key: str, active: bool, use_container_width: bool 
     except TypeError:
         marker = "● " if active else "○ "
         return st.button(marker + label, key=key, use_container_width=use_container_width)
+
+
+def pill_row(marker_key: str, values: list[str], selected: str, on_pick, scope: str = "tags-scope") -> None:
+    """A single-select row of toggle_button pills, each column sized to its
+    own label's length so nothing truncates (short filter values and long
+    page names alike). Clicking a pill calls on_pick(value) and reruns.
+    scope picks which CSS region this row styles as — "tags-scope" for
+    in-page filter pills — the top-level Catalog/Documentation workspace
+    switcher lives inline in header() instead, not as a pill_row (see
+    inject_css's .st-key-header-nav)."""
+    with st.container():
+        scope_marker(scope)
+        widths = [len(v) + 4 for v in values]
+        cols = st.columns(widths + [max(sum(widths) // 2, 1)])
+        for col, value in zip(cols, values):
+            with col:
+                if toggle_button(value, key=f"{marker_key}_{value}", active=(selected == value)):
+                    on_pick(value)
+                    st.rerun()
 
 
 def render_detail_card(row, usage_status: str | None = None) -> None:

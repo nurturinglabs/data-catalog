@@ -1,7 +1,7 @@
 column_name,data_product,table_count,description,assigned_to,status,origin,orphaned,updated_by,updated_at
-AMOUNT,FINANCE_DB,1,"Invoice amount due, in USD.",Priya,Submitted,structure,False,Priya,2026-07-21
+AMOUNT,FINANCE_DB,1,"Invoice amount due, in USD.",Priya,Assigned,structure,False,Priya,2026-07-28T00:19:58
 AMOUNT_PAID,FINANCE_DB,1,"Amount paid against the invoice, in USD.",Deepak,In progress,structure,False,Deepak,2026-07-20
-CATEGORY,SALES_DB,1,Product category used for merchandising and reporting.,Marcus,Submitted,structure,False,Marcus,2026-07-19
+CATEGORY,SALES_DB,1,Product category used for merchandising and reporting.,Marcus,Approved,structure,False,Priya,2026-07-27T23:58:17
 CITY,SALES_DB,1,City component of the mailing address.,Elena,In progress,structure,False,Elena,2026-07-18
 CREATED_AT,SALES_DB,2,Timestamp the record was first created.,Priya,Submitted,structure,False,Priya,2026-07-17
 CUSIP,FINANCE_DB,4,Cross-system identifier linking finance records to a security or instrument.,Deepak,Approved,structure,False,Deepak,2026-07-16
@@ -11,11 +11,11 @@ DEPARTMENT_NAME,HR_DB,1,Display name of the department.,Priya,Submitted,structur
 EMAIL,"HR_DB, SALES_DB",2,Primary email address on file.,Deepak,In progress,structure,False,Deepak,2026-07-12
 EMPLOYEE_ID,HR_DB,2,Unique identifier for an employee record.,Marcus,Approved,structure,False,Marcus,2026-07-11
 FIRST_NAME,"HR_DB, SALES_DB",2,Given name of the individual.,Elena,In progress,structure,False,Elena,2026-07-10
-GROSS_PAY,HR_DB,1,"Gross pay before deductions, in USD.",Priya,Submitted,structure,False,Priya,2026-07-09
+GROSS_PAY,HR_DB,1,"Gross pay before deductions, in USD.",Priya,Approved,structure,False,Priya,2026-07-27T23:58:25
 HIRE_DATE,HR_DB,1,Date the employee's current employment began.,Deepak,In progress,structure,False,Deepak,2026-07-08
 INVOICE_DATE,FINANCE_DB,1,Date the invoice was issued.,Marcus,Submitted,structure,False,Marcus,2026-07-07
 INVOICE_ID,FINANCE_DB,2,Unique identifier for a vendor invoice.,Elena,Approved,structure,False,Elena,2026-07-06
-LAST_NAME,"HR_DB, SALES_DB",2,Family name of the individual.,Priya,Submitted,structure,False,Priya,2026-07-05
+LAST_NAME,"HR_DB, SALES_DB",2,Family name of the individual.,Priya,Approved,structure,False,Priya,2026-07-27T23:58:57
 LIFETIME_VALUE,SALES_DB,1,"Modeled lifetime value of the customer, in USD.",Deepak,In progress,structure,False,Deepak,2026-07-04
 MANAGER_ID,HR_DB,1,Employee ID of this employee's direct manager.,Marcus,Submitted,structure,False,Marcus,2026-07-03
 NET_PAY,HR_DB,1,"Net pay after deductions, in USD.",Elena,In progress,structure,False,Elena,2026-07-02
@@ -40,7 +40,7 @@ UNIT_PRICE,SALES_DB,2,"List price per unit at time of order, in USD.",Deepak,In 
 VENDOR_ID,FINANCE_DB,2,Unique identifier for a vendor.,Marcus,Approved,structure,False,Marcus,2026-06-13
 VENDOR_NAME,FINANCE_DB,1,Legal name of the vendor.,Elena,In progress,structure,False,Elena,2026-06-12
 ACCOUNT_CODE,FINANCE_DB,1,,,Unassigned,structure,False,,
-ADDRESS,SALES_DB,1,,Deepak,Assigned,structure,False,Deepak,2026-07-23
+ADDRESS,SALES_DB,1,,Priya,Assigned,structure,False,Priya,2026-07-28T00:20:02
 CONTACT_EMAIL,FINANCE_DB,1,Draft: Contact Email — needs review.,Marcus,In progress,structure,False,Marcus,2026-07-22
 COST_CENTER,HR_DB,1,,,Unassigned,structure,False,,
 CREDIT_AMOUNT,FINANCE_DB,1,,Priya,Assigned,structure,False,Priya,2026-07-20
