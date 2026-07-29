@@ -79,43 +79,53 @@ def inject_css() -> None:
        be a real Streamlit block, not a raw HTML div, because it holds a
        genuine interactive Refresh button in its top-right corner. ── */
     .st-key-header-band {{
-        width: 100% !important; background: {primary} !important; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        padding: 20px 36px !important; box-sizing: border-box; display: flex !important; align-items: center !important;
+        width: 100% !important; background: {primary} !important; box-shadow: none !important;
+        border-bottom: 1px solid rgba(0,0,0,0.18);
+        /* Symmetric vertical padding, not min-height + align-items, is what
+           actually guarantees centering here: align-items:center on this
+           element only centers its DIRECT child, and that child (an inner
+           stVerticalBlock Streamlit inserts for every container) stretches
+           to fill the full height rather than shrinking to its own content
+           — so with a min-height the content sat at the top with dead
+           space below, not centered. Equal top/bottom padding sidesteps
+           that regardless of how many wrapper divs sit in between. */
+        padding: 20px 20px !important; box-sizing: border-box;
+        display: flex !important; align-items: center !important;
     }}
     .st-key-header-band div[data-testid="stHorizontalBlock"] {{
         display: flex !important; align-items: center !important; width: 100% !important;
     }}
-    .header-brand {{ display: flex; align-items: center; gap: 14px; }}
-    .header-icon {{ font-size: 26px; }}
-    .header-logo {{ height: 42px; width: auto; max-width: 160px; object-fit: contain; }}
-    .header-divider {{ width: 2px; height: 38px; background: {accent}; display: inline-block; }}
-    .header-title {{ color: {accent}; font-weight: 700; font-size: 23px; letter-spacing: -0.02em; }}
-    .header-subtitle {{ color: #CFE3E1; font-size: 13px; margin-top: 3px; }}
+    .header-brand {{ display: flex; align-items: center; gap: 10px; }}
+    .header-icon {{ display: flex; align-items: center; color: {accent}; }}
+    .header-icon svg {{ width: 20px; height: 20px; display: block; }}
+    .header-logo {{ height: 28px; width: auto; max-width: 140px; object-fit: contain; }}
+    .header-title {{ color: #fff; font-weight: 700; font-size: 19px; }}
+    .header-tagline {{ color: #9DBBD9; font-size: 13.5px; margin-left: 4px; }}
 
     /* ── Page nav menu, inline in the header (Catalog / Documentation
-       workspace) — real menu chips, not plain colored text: a soft
-       translucent-white highlight on hover, and a stronger translucent
-       highlight + gold text + gold bottom rule marking the active item, so
-       it reads as a proper nav bar rather than a couple of links. ── */
+       workspace) — flat text tabs, not buttons: no fill, no border, no
+       shadow, no rounded box. Inactive is muted light-blue; active is
+       white with only a 2px gold underline marking it — the whole point of
+       this pass was to get away from the "raised toolbar button" look a
+       filled/bordered/shadowed pill gave the old version. ── */
     .st-key-header-nav div[data-testid="stButton"] {{
         display: flex !important; align-items: center !important;
     }}
     .st-key-header-nav div[data-testid="stButton"] button {{
-        border: none !important; box-shadow: none !important;
-        border-radius: 8px !important; font-size: 14px !important; font-weight: 600 !important;
-        padding: 10px 18px !important; white-space: nowrap !important;
-        border-bottom: 3px solid transparent !important;
-        transition: background-color .12s, color .12s;
+        background: transparent !important; border: none !important; box-shadow: none !important;
+        border-radius: 0 !important; font-size: 14px !important; font-weight: 600 !important;
+        padding: 4px 0 !important; margin: 0 12px !important; white-space: nowrap !important;
+        border-bottom: 2px solid transparent !important;
+        transition: color .12s, border-color .12s;
     }}
     .st-key-header-nav div[data-testid="stButton"] button[data-testid="stBaseButton-secondary"] {{
-        background: transparent !important; color: #B8D4EC !important;
+        color: #9DBBD9 !important;
     }}
     .st-key-header-nav div[data-testid="stButton"] button[data-testid="stBaseButton-secondary"]:hover {{
-        background: rgba(255,255,255,0.10) !important; color: #fff !important;
+        color: #fff !important;
     }}
     .st-key-header-nav div[data-testid="stButton"] button[data-testid="stBaseButton-primary"] {{
-        background: rgba(255,255,255,0.16) !important; color: {accent} !important;
-        border-bottom: 3px solid {accent} !important;
+        color: #fff !important; border-bottom: 2px solid {accent} !important;
     }}
 
     /* ── Tabs — styled to read as a continuation of the navy header: same
@@ -259,6 +269,42 @@ def inject_css() -> None:
     .usage-badge-adhoc      {{ background: #F1F5F9; color: #475569; }}
     .usage-badge-default    {{ background: #F1F5F9; color: #475569; }}
 
+    /* ── Coverage strip (Documentation workspace) — a slim progress bar +
+       inline stat pills replacing four large KPI cards; orientation, not
+       the focus, so it stays compact. st.progress already renders navy
+       for free (primaryColor in .streamlit/config.toml), no override
+       needed. ── */
+    .status-pill-row {{ display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }}
+    .status-pill {{
+        display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px;
+        font-weight: 600; padding: 6px 14px; border-radius: 999px; white-space: nowrap;
+    }}
+    .status-pill .n {{ font-size: 15px; font-weight: 800; }}
+    .status-pill-unassigned {{ background: #F1F5F9; color: #475569; }}
+    .status-pill-inprogress {{ background: #E6F1FB; color: #0C447C; }}
+    .status-pill-submitted  {{ background: #FFF3D6; color: #8A5A00; }}
+    .status-pill-approved   {{ background: #E6F7EC; color: #1E7A3D; }}
+
+    /* ── Docked table + action bar (Documentation workspace coordinator
+       grid) — the data_editor and the bulk-action row underneath it are
+       wrapped in one bordered card (.st-key-coordinator-dock) so the
+       actions read as attached to the rows they operate on, not stranded
+       at the page bottom. The editor's own corners/border are flattened
+       (the wrapping card supplies the outer rounding) and the default gap
+       Streamlit puts between stacked blocks is zeroed out inside the dock
+       so the two pieces sit flush. ── */
+    .st-key-coordinator-dock {{
+        border: 1px solid #E2E8F0; border-radius: 10px; overflow: hidden;
+        box-shadow: 0 1px 4px rgba(15,23,42,0.06);
+    }}
+    .st-key-coordinator-dock div[data-testid="stVerticalBlock"] > div {{ gap: 0 !important; }}
+    .st-key-coordinator-dock div[data-testid="stDataFrame"] {{
+        border: none !important; border-radius: 0 !important;
+    }}
+    .st-key-coordinator-action-bar {{
+        background: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 12px 16px !important;
+    }}
+
     /* Misc widget polish */
     div[data-testid="stCheckbox"] label p {{ font-size: 13.5px !important; }}
     div[data-testid="stDataFrame"] {{ border-radius: 8px; overflow: hidden; }}
@@ -266,10 +312,23 @@ def inject_css() -> None:
     """, unsafe_allow_html=True)
 
 
+_BOOK_ICON_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0 -3 -3H2z"></path>'
+    '<path d="M22 3h-6a4 4 0 0 0 -4 4v14a3 3 0 0 1 3 -3h7z"></path>'
+    '</svg>'
+)
+
+
 def _logo_html() -> str:
     """Render config.HEADER_LOGO_PATH as an inline base64 <img>, so it works
     identically locally and in Streamlit-in-Snowflake (no static file
-    serving required). Falls back to HEADER_ICON if unset/unreadable."""
+    serving required). Falls back to a single-color inline SVG line icon
+    (a book, matching Tabler Icons' stroke conventions — 24x24 viewBox, 2px
+    stroke, rounded joins) when unset/unreadable — deliberately not an
+    emoji, which renders as an inconsistent cartoon sticker across
+    platforms/fonts."""
     logo_path = getattr(config, "HEADER_LOGO_PATH", "")
     if logo_path and os.path.isfile(logo_path):
         mime, _ = mimetypes.guess_type(logo_path)
@@ -277,18 +336,14 @@ def _logo_html() -> str:
         with open(logo_path, "rb") as f:
             encoded = base64.b64encode(f.read()).decode("ascii")
         return f'<img class="header-logo" src="data:{mime};base64,{encoded}" alt="logo">'
-    icon = getattr(config, "HEADER_ICON", "📚")
-    return f'<span class="header-icon">{html.escape(icon)}</span>'
-
-
-_NAV_ICONS = {"Catalog": "📚", "Documentation workspace": "📝"}
+    return f'<span class="header-icon">{_BOOK_ICON_SVG}</span>'
 
 
 def header(nav_items: list[str] | None = None) -> None:
-    """Render the navy header: logo/title on the left, an optional inline
-    nav menu on the right (Catalog / Documentation workspace, e.g.) styled
-    as real menu chips — a background highlight on hover, a stronger
-    highlight + gold text on the active item — not just colored text.
+    """Render the slim navy header: a line-icon wordmark on the left, an
+    optional inline nav menu on the right (Catalog / Documentation
+    workspace, e.g.) styled as flat text tabs — no fill, no border, no
+    shadow; the active one gets a 2px gold underline, nothing else.
 
     When nav_items is given, clicking one updates
     st.session_state["active_view"] and reruns immediately — the caller
@@ -311,11 +366,8 @@ def header(nav_items: list[str] | None = None) -> None:
             st.markdown(f"""
             <div class="header-brand">
               {_logo_html()}
-              <span class="header-divider"></span>
-              <div>
-                <div class="header-title">{html.escape(config.APP_TITLE)}</div>
-                <div class="header-subtitle">{html.escape(config.APP_SUBTITLE)}</div>
-              </div>
+              <span class="header-title">{html.escape(config.APP_TITLE)}</span>
+              <span class="header-tagline">· {html.escape(config.APP_SUBTITLE)}</span>
             </div>
             """, unsafe_allow_html=True)
         if nav_items:
@@ -323,17 +375,16 @@ def header(nav_items: list[str] | None = None) -> None:
                 active = st.session_state.get("active_view", nav_items[0])
                 nav_container = st.container(key="header-nav")
                 with nav_container:
-                    display_labels = [f"{_NAV_ICONS.get(v, '')} {v}".strip() for v in nav_items]
-                    widths = [len(v) + 4 for v in display_labels]
+                    widths = [len(v) + 4 for v in nav_items]
                     # A leading spacer (not trailing) pushes the items to the
                     # right edge of nav_col — i.e. the right edge of the
-                    # header itself — and gap=None sits them flush against
-                    # each other instead of Streamlit's default column gutter.
+                    # header itself. Per-button CSS margin (not column gap)
+                    # controls the ~24px space between the two tabs.
                     cols = st.columns([max(sum(widths), 1)] + widths, gap=None)
-                    for col, label, display in zip(cols[1:], nav_items, display_labels):
+                    for col, label in zip(cols[1:], nav_items):
                         with col:
                             if toggle_button(
-                                display, key=f"header_nav_{label}",
+                                label, key=f"header_nav_{label}",
                                 active=(active == label), use_container_width=False,
                             ):
                                 st.session_state["active_view"] = label
@@ -359,6 +410,32 @@ def kpi_row(metrics: list[dict]) -> None:
               <p class="kpi-value">{html.escape(str(m['value']))}</p>
             </div>
             """, unsafe_allow_html=True)
+
+
+_STATUS_PILL_CLASSES = {
+    "unassigned": "status-pill-unassigned",
+    "in progress": "status-pill-inprogress",
+    "submitted": "status-pill-submitted",
+    "approved": "status-pill-approved",
+}
+
+
+def coverage_strip(coverage_pct: float, counts: dict[str, int]) -> None:
+    """A slim orientation strip — a native progress bar (already navy via
+    .streamlit/config.toml's primaryColor, no CSS override needed) plus
+    inline colored stat pills, one per status count. Replaces four large
+    KPI cards: this is orientation, not the focus, so it stays compact.
+    counts should be an ordered dict/mapping of status label -> count."""
+    prog_col, pills_col = st.columns([2, 4], vertical_alignment="center")
+    with prog_col:
+        st.progress(min(max(coverage_pct / 100, 0.0), 1.0), text=f"{coverage_pct:.0f}% approved")
+    with pills_col:
+        pills_html = "".join(
+            f'<span class="status-pill {_STATUS_PILL_CLASSES.get(label.lower(), "status-pill-unassigned")}">'
+            f'<span class="n">{count}</span> {html.escape(label)}</span>'
+            for label, count in counts.items()
+        )
+        st.markdown(f'<div class="status-pill-row">{pills_html}</div>', unsafe_allow_html=True)
 
 
 def tag_pill(tag: str) -> str:

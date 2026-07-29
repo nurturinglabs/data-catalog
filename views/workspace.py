@@ -33,8 +33,9 @@ def render() -> None:
     # ─────────────────────────────────────────────────────────────────────────────
 
     st.session_state.setdefault("workspace_role", "Coordinator")
+    workflow_df = workflow.load_workflow()
 
-    role_col, identity_col, _spacer = st.columns([2.4, 2.2, 4])
+    role_col, identity_col, progress_col = st.columns([2.2, 2.6, 3.4])
     with role_col:
         def _pick_role(value: str) -> None:
             st.session_state["workspace_role"] = value
@@ -53,13 +54,26 @@ def render() -> None:
             )
             workflow.set_local_user(picked)
             st.caption(
-                "Local stand-in for the signed-in user — on Snowflake this "
-                "resolves automatically via `CURRENT_USER()`."
+                "Local stand-in — resolves via `CURRENT_USER()` on Snowflake."
             )
 
     actor = workflow.current_user()
     role = st.session_state["workspace_role"]
-    workflow_df = workflow.load_workflow()
+
+    with progress_col:
+        if role == "Coordinator":
+            bits = []
+            for person in config.WORKFLOW_ASSIGNEES:
+                person_df = workflow_df[workflow_df["assigned_to"] == person]
+                total = len(person_df)
+                done = int((person_df["status"] == "Approved").sum())
+                bits.append(f"{person} {done}/{total}" if total else f"{person} —")
+            bits.append(f"Unassigned {int((workflow_df['status'] == 'Unassigned').sum())}")
+            st.markdown(
+                f'<div style="text-align:right; font-size:12.5px; color:#64748B; '
+                f'padding-top:0.6rem;">{" · ".join(bits)}</div>',
+                unsafe_allow_html=True,
+            )
 
 
     # ─────────────────────────────────────────────────────────────────────────────
@@ -67,20 +81,7 @@ def render() -> None:
     # ─────────────────────────────────────────────────────────────────────────────
 
     def render_coordinator(df: pd.DataFrame) -> None:
-        st.markdown("##### Coordinator")
-
-        # Per-person progress — independent of the filters below, a standing
-        # overview strip.
-        bits = []
-        for person in config.WORKFLOW_ASSIGNEES:
-            person_df = df[df["assigned_to"] == person]
-            total = len(person_df)
-            done = int((person_df["status"] == "Approved").sum())
-            bits.append(f"**{person}** {done}/{total}" if total else f"**{person}** —")
-        bits.append(f"**Unassigned** {int((df['status'] == 'Unassigned').sum())}")
-        st.caption(" · ".join(bits))
-
-        filter_cols = st.columns([1.4, 1.2, 1.2, 1])
+        filter_cols = st.columns([1.4, 1.2, 1.2, 0.9, 1.1, 1.2])
         with filter_cols[0]:
             status_filter = st.multiselect(
                 "Status", workflow.STATUSES, placeholder="All statuses", key="coord_status_filter",
@@ -97,9 +98,23 @@ def render() -> None:
             )
         with filter_cols[3]:
             # Nudged down to align with the selectboxes' input controls,
-            # which sit below a label row the checkbox doesn't have.
+            # which sit below a label row these controls don't have.
             st.markdown('<div style="height: 1.9rem"></div>', unsafe_allow_html=True)
             orphaned_only = st.checkbox("Orphaned only", key="coord_orphaned_filter")
+        with filter_cols[4]:
+            st.markdown('<div style="height: 1.9rem"></div>', unsafe_allow_html=True)
+            with st.popover("➕ Add row"):
+                with st.form("add_row_form", clear_on_submit=True):
+                    new_col = st.text_input("Column name")
+                    new_product = st.selectbox("Data product", config.STRUCTURE_DATABASES)
+                    new_table = st.text_input("Table (optional)")
+                    if st.form_submit_button("Add row", type="primary"):
+                        try:
+                            workflow.add_manual_row(new_col, new_product, new_table, actor=actor)
+                            st.toast(f"Added '{new_col.strip().upper()}'.", icon="✅")
+                            st.rerun()
+                        except ValueError as exc:
+                            st.error(str(exc))
 
         filtered = df
         if status_filter:
@@ -114,33 +129,32 @@ def render() -> None:
             filtered = filtered[filtered["orphaned"]]
         filtered = filtered.sort_values("column_name").reset_index(drop=True)
 
+        # Filled in now rather than up in the filter_cols block above,
+        # since the CSV needs `filtered` — which depends on the other
+        # filter widgets' values — but the column slot itself was already
+        # laid out alongside them, so it still reads as part of that row.
+        with filter_cols[5]:
+            st.markdown('<div style="height: 1.9rem"></div>', unsafe_allow_html=True)
+            st.download_button(
+                "⬇️ Download CSV",
+                data=filtered.to_csv(index=False).encode("utf-8"),
+                file_name="documentation_workspace.csv",
+                mime="text/csv",
+                key="coord_download_csv",
+                use_container_width=True,
+            )
+
         total = len(filtered)
         approved_n = int((filtered["status"] == "Approved").sum())
         unassigned_n = int((filtered["status"] == "Unassigned").sum())
         in_progress_n = int((filtered["status"] == "In progress").sum())
+        submitted_n = int((filtered["status"] == "Submitted").sum())
         coverage_pct = (approved_n / total * 100) if total else 0.0
 
-        theme.kpi_row([
-            {"label": "Coverage", "value": f"{coverage_pct:.0f}%", "icon": "📈", "accent": "primary"},
-            {"label": "Unassigned", "value": f"{unassigned_n}", "icon": "❓", "accent": "yellow"},
-            {"label": "In progress", "value": f"{in_progress_n}", "icon": "✍️", "accent": "primary"},
-            {"label": "Approved", "value": f"{approved_n}", "icon": "✅", "accent": "yellow"},
-        ])
-
-        st.write("")
-        with st.expander("➕ Add row"):
-            with st.form("add_row_form", clear_on_submit=True):
-                c1, c2, c3 = st.columns(3)
-                new_col = c1.text_input("Column name")
-                new_product = c2.selectbox("Data product", config.STRUCTURE_DATABASES)
-                new_table = c3.text_input("Table (optional)")
-                if st.form_submit_button("Add row", type="primary"):
-                    try:
-                        workflow.add_manual_row(new_col, new_product, new_table, actor=actor)
-                        st.toast(f"Added '{new_col.strip().upper()}'.", icon="✅")
-                        st.rerun()
-                    except ValueError as exc:
-                        st.error(str(exc))
+        theme.coverage_strip(coverage_pct, {
+            "Unassigned": unassigned_n, "In progress": in_progress_n,
+            "Submitted": submitted_n, "Approved": approved_n,
+        })
 
         st.write("")
         if filtered.empty:
@@ -161,84 +175,100 @@ def render() -> None:
         })
         display_cols = ["Select", "Column", "N tables", "Data product", "Assigned to", "Status", "Description"]
 
-        edited = st.data_editor(
-            display[display_cols],
-            hide_index=True,
-            use_container_width=True,
-            height=420,
-            key="coordinator_grid",
-            disabled=["Column", "N tables", "Data product", "Assigned to", "Status"],
-            column_config={"Description": st.column_config.TextColumn(width="large")},
-        )
-
-        selected_mask = edited["Select"].to_numpy()
-        selected_columns = filtered.loc[selected_mask, "column_name"].tolist()
-        selected_updated_at = dict(zip(filtered.loc[selected_mask, "column_name"], filtered.loc[selected_mask, "updated_at"]))
-
-        action_cols = st.columns([1.3, 1, 1.3])
-        with action_cols[0]:
-            assignee_choice = st.selectbox(
-                "Assign to", config.WORKFLOW_ASSIGNEES, key="coord_bulk_assignee", label_visibility="collapsed",
+        # The grid and the bulk-action bar are wrapped in one bordered card
+        # (.st-key-coordinator-dock) so the actions read as attached to the
+        # rows they operate on, instead of stranded at the page bottom.
+        dock = st.container(key="coordinator-dock")
+        with dock:
+            edited = st.data_editor(
+                display[display_cols],
+                hide_index=True,
+                use_container_width=True,
+                height=420,
+                key="coordinator_grid",
+                disabled=["Column", "N tables", "Data product", "Assigned to", "Status"],
+                column_config={"Description": st.column_config.TextColumn(width="large")},
             )
-            if st.button("Assign selected", key="coord_bulk_assign_btn", type="primary", use_container_width=True):
-                if not selected_columns:
-                    st.warning("Select at least one row first.")
-                else:
-                    edits = [
-                        {"column_name": c, "assigned_to": assignee_choice, "status": "Assigned",
-                         "_expected_updated_at": selected_updated_at[c]}
-                        for c in selected_columns
+
+            selected_mask = edited["Select"].to_numpy()
+            selected_columns = filtered.loc[selected_mask, "column_name"].tolist()
+            selected_updated_at = dict(zip(filtered.loc[selected_mask, "column_name"], filtered.loc[selected_mask, "updated_at"]))
+
+            action_bar = st.container(key="coordinator-action-bar")
+        with action_bar:
+            count_col, assignee_col, assign_col, approve_col, spacer_col, save_col = st.columns(
+                [1.5, 1.6, 1, 1, 2.4, 1.6]
+            )
+            with count_col:
+                st.markdown(
+                    f'<div style="padding-top:0.5rem; font-size:13px; font-weight:600; color:#475569;">'
+                    f'{len(selected_columns)} selected</div>',
+                    unsafe_allow_html=True,
+                )
+            with assignee_col:
+                assignee_choice = st.selectbox(
+                    "Assign to", config.WORKFLOW_ASSIGNEES, key="coord_bulk_assignee", label_visibility="collapsed",
+                )
+            with assign_col:
+                if st.button("Assign", key="coord_bulk_assign_btn", type="primary", use_container_width=True):
+                    if not selected_columns:
+                        st.warning("Select at least one row first.")
+                    else:
+                        edits = [
+                            {"column_name": c, "assigned_to": assignee_choice, "status": "Assigned",
+                             "_expected_updated_at": selected_updated_at[c]}
+                            for c in selected_columns
+                        ]
+                        try:
+                            workflow.save_rows(edits, actor=actor)
+                            st.toast(f"Assigned {len(selected_columns)} column(s) to {assignee_choice}.", icon="✅")
+                            st.rerun()
+                        except workflow.WorkflowConflictError as exc:
+                            st.error(f"{exc} Reload to see the latest version before retrying.")
+            with approve_col:
+                if st.button("Approve", key="coord_bulk_approve_btn", type="primary", use_container_width=True):
+                    submittable = filtered[
+                        filtered["column_name"].isin(selected_columns) & (filtered["status"] == "Submitted")
                     ]
-                    try:
-                        workflow.save_rows(edits, actor=actor)
-                        st.toast(f"Assigned {len(selected_columns)} column(s) to {assignee_choice}.", icon="✅")
-                        st.rerun()
-                    except workflow.WorkflowConflictError as exc:
-                        st.error(f"{exc} Reload to see the latest version before retrying.")
-        with action_cols[1]:
-            if st.button("Approve selected", key="coord_bulk_approve_btn", type="primary", use_container_width=True):
-                submittable = filtered[
-                    filtered["column_name"].isin(selected_columns) & (filtered["status"] == "Submitted")
-                ]
-                skipped = len(selected_columns) - len(submittable)
-                if submittable.empty:
-                    st.warning("No selected rows are in 'Submitted' status.")
-                else:
-                    edits = [
-                        {"column_name": c, "status": "Approved", "_expected_updated_at": u}
-                        for c, u in zip(submittable["column_name"], submittable["updated_at"])
-                    ]
-                    try:
-                        workflow.save_rows(edits, actor=actor)
-                        msg = f"Approved {len(submittable)} column(s)."
-                        if skipped:
-                            msg += f" Skipped {skipped} not in 'Submitted' status."
-                        st.toast(msg, icon="✅")
-                        st.rerun()
-                    except workflow.WorkflowConflictError as exc:
-                        st.error(f"{exc} Reload to see the latest version before retrying.")
-        with action_cols[2]:
-            if st.button("💾 Save description edits", key="coord_save_desc_btn", use_container_width=True):
-                orig_desc = filtered["description"].astype(str).to_numpy()
-                new_desc = edited["Description"].astype(str).to_numpy()
-                changed_mask = orig_desc != new_desc
-                if not changed_mask.any():
-                    st.info("No description changes to save.")
-                else:
-                    edits = [
-                        {"column_name": n, "description": d, "_expected_updated_at": u}
-                        for n, d, u in zip(
-                            filtered.loc[changed_mask, "column_name"],
-                            edited.loc[changed_mask, "Description"],
-                            filtered.loc[changed_mask, "updated_at"],
-                        )
-                    ]
-                    try:
-                        workflow.save_rows(edits, actor=actor)
-                        st.toast(f"Saved {len(edits)} description edit(s).", icon="✅")
-                        st.rerun()
-                    except workflow.WorkflowConflictError as exc:
-                        st.error(f"{exc} Reload to see the latest version before retrying.")
+                    skipped = len(selected_columns) - len(submittable)
+                    if submittable.empty:
+                        st.warning("No selected rows are in 'Submitted' status.")
+                    else:
+                        edits = [
+                            {"column_name": c, "status": "Approved", "_expected_updated_at": u}
+                            for c, u in zip(submittable["column_name"], submittable["updated_at"])
+                        ]
+                        try:
+                            workflow.save_rows(edits, actor=actor)
+                            msg = f"Approved {len(submittable)} column(s)."
+                            if skipped:
+                                msg += f" Skipped {skipped} not in 'Submitted' status."
+                            st.toast(msg, icon="✅")
+                            st.rerun()
+                        except workflow.WorkflowConflictError as exc:
+                            st.error(f"{exc} Reload to see the latest version before retrying.")
+            with save_col:
+                if st.button("💾 Save edits", key="coord_save_desc_btn", use_container_width=True):
+                    orig_desc = filtered["description"].astype(str).to_numpy()
+                    new_desc = edited["Description"].astype(str).to_numpy()
+                    changed_mask = orig_desc != new_desc
+                    if not changed_mask.any():
+                        st.info("No description changes to save.")
+                    else:
+                        edits = [
+                            {"column_name": n, "description": d, "_expected_updated_at": u}
+                            for n, d, u in zip(
+                                filtered.loc[changed_mask, "column_name"],
+                                edited.loc[changed_mask, "Description"],
+                                filtered.loc[changed_mask, "updated_at"],
+                            )
+                        ]
+                        try:
+                            workflow.save_rows(edits, actor=actor)
+                            st.toast(f"Saved {len(edits)} description edit(s).", icon="✅")
+                            st.rerun()
+                        except workflow.WorkflowConflictError as exc:
+                            st.error(f"{exc} Reload to see the latest version before retrying.")
 
 
     # ─────────────────────────────────────────────────────────────────────────────
