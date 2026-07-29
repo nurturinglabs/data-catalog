@@ -1,0 +1,16 @@
+# Streamlit-in-Snowflake environment file — pins the SAME Streamlit floor
+# as requirements.txt (local dev), so "works locally, crashes in SiS" stops
+# being a version-drift problem. SiS resolves packages from Snowflake's
+# Anaconda channel, which does not mirror every PyPI patch release — if
+# streamlit=1.35.0 isn't available in your account/region, pick the
+# nearest version Snowsight's package picker offers that is >= 1.35; this
+# app degrades gracefully (see theme.py's "Version-compat wrappers"
+# section) on anything older, but only looks/behaves exactly as designed
+# from 1.35 up.
+name: app_environment
+channels:
+  - snowflake
+dependencies:
+  - streamlit=1.35.0
+  - pandas
+  - openpyxl

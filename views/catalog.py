@@ -162,7 +162,7 @@ def render() -> None:
     ])
 
     st.write("")
-    results_col, detail_col = st.columns([3, 2], gap="medium")
+    results_col, detail_col = theme.safe_columns([3, 2], gap="medium")
 
     with results_col:
         st.caption(f"{scope_label} — {view_count} column{'s' if view_count != 1 else ''}")

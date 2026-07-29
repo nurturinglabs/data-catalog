@@ -83,7 +83,7 @@ def render() -> None:
     def render_coordinator(df: pd.DataFrame) -> None:
         filter_cols = st.columns([1.4, 1.2, 1.2, 0.9, 1.1, 1.2])
         with filter_cols[0]:
-            status_filter = st.multiselect(
+            status_filter = theme.safe_multiselect(
                 "Status", workflow.STATUSES, placeholder="All statuses", key="coord_status_filter",
             )
         with filter_cols[1]:
@@ -103,12 +103,12 @@ def render() -> None:
             orphaned_only = st.checkbox("Orphaned only", key="coord_orphaned_filter")
         with filter_cols[4]:
             st.markdown('<div style="height: 1.9rem"></div>', unsafe_allow_html=True)
-            with st.popover("➕ Add row"):
+            with theme.safe_popover("➕ Add row"):
                 with st.form("add_row_form", clear_on_submit=True):
                     new_col = st.text_input("Column name")
                     new_product = st.selectbox("Data product", config.STRUCTURE_DATABASES)
                     new_table = st.text_input("Table (optional)")
-                    if st.form_submit_button("Add row", type="primary"):
+                    if theme.action_form_submit_button("Add row", primary=True):
                         try:
                             workflow.add_manual_row(new_col, new_product, new_table, actor=actor)
                             st.toast(f"Added '{new_col.strip().upper()}'.", icon="✅")
@@ -178,7 +178,7 @@ def render() -> None:
         # The grid and the bulk-action bar are wrapped in one bordered card
         # (.st-key-coordinator-dock) so the actions read as attached to the
         # rows they operate on, instead of stranded at the page bottom.
-        dock = st.container(key="coordinator-dock")
+        dock = theme.safe_container(key="coordinator-dock")
         with dock:
             edited = st.data_editor(
                 display[display_cols],
@@ -194,7 +194,7 @@ def render() -> None:
             selected_columns = filtered.loc[selected_mask, "column_name"].tolist()
             selected_updated_at = dict(zip(filtered.loc[selected_mask, "column_name"], filtered.loc[selected_mask, "updated_at"]))
 
-            action_bar = st.container(key="coordinator-action-bar")
+            action_bar = theme.safe_container(key="coordinator-action-bar")
         with action_bar:
             count_col, assignee_col, assign_col, approve_col, spacer_col, save_col = st.columns(
                 [1.5, 1.6, 1, 1, 2.4, 1.6]
@@ -210,7 +210,7 @@ def render() -> None:
                     "Assign to", config.WORKFLOW_ASSIGNEES, key="coord_bulk_assignee", label_visibility="collapsed",
                 )
             with assign_col:
-                if st.button("Assign", key="coord_bulk_assign_btn", type="primary", use_container_width=True):
+                if theme.action_button("Assign", key="coord_bulk_assign_btn", primary=True, use_container_width=True):
                     if not selected_columns:
                         st.warning("Select at least one row first.")
                     else:
@@ -226,7 +226,7 @@ def render() -> None:
                         except workflow.WorkflowConflictError as exc:
                             st.error(f"{exc} Reload to see the latest version before retrying.")
             with approve_col:
-                if st.button("Approve", key="coord_bulk_approve_btn", type="primary", use_container_width=True):
+                if theme.action_button("Approve", key="coord_bulk_approve_btn", primary=True, use_container_width=True):
                     submittable = filtered[
                         filtered["column_name"].isin(selected_columns) & (filtered["status"] == "Submitted")
                     ]
@@ -319,7 +319,7 @@ def render() -> None:
                         except workflow.WorkflowConflictError as exc:
                             st.error(f"{exc} Reload to see the latest version before retrying.")
                 with c2:
-                    if st.button("Submit", key=f"submit_{col}", type="primary", use_container_width=True):
+                    if theme.action_button("Submit", key=f"submit_{col}", primary=True, use_container_width=True):
                         if not st.session_state[draft_key].strip():
                             st.warning("Write a description before submitting.")
                         else:

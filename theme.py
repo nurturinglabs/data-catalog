@@ -39,6 +39,108 @@ USAGE_ACCENT = "#1A6EB5"  # deliberately distinct from ACCENT_COLOR (gold),
 NAV_ITEMS = ["Catalog", "Documentation workspace"]
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Version-compat wrappers — local runs against whatever's pip-installed
+# (currently 1.50.x); Streamlit-in-Snowflake pins its own, often older,
+# runtime. Every call below wraps a Streamlit API whose signature grew a
+# newer kwarg (or that didn't exist at all) somewhere in that gap, so a
+# too-old SiS build degrades cosmetically instead of raising an uncaught
+# TypeError/AttributeError mid-render. Approximate introduction versions,
+# to the best of available knowledge (no changelog access from here):
+#   st.button/st.form_submit_button `type=`     ~1.31
+#   st.columns `gap=`                           ~1.31
+#   st.columns `vertical_alignment=`             ~1.33
+#   st.container `key=`/`border=`               ~1.34
+#   st.dataframe `on_select=`/`selection_mode=`  ~1.35 (already guarded
+#                                                 in views/catalog.py)
+#   st.popover                                   ~1.27
+#   st.multiselect `placeholder=`                ~1.35
+#   st.progress `text=`                          ~1.29
+# requirements.txt currently pins streamlit>=1.35, which covers all of the
+# above — these wrappers are the fallback for whenever that pin and the
+# actual deployed SiS runtime drift apart, which is exactly what happened
+# to prompt this pass.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def safe_container(key: str | None = None, **kwargs):
+    """st.container(key=...) that degrades to a plain, unkeyed container
+    (losing only its CSS hook — a cosmetic hit, not a crash) on a build too
+    old for key=."""
+    try:
+        return st.container(key=key, **kwargs)
+    except TypeError:
+        return st.container()
+
+
+def safe_columns(spec, **kwargs):
+    """st.columns() that degrades gracefully on a build too old for one of
+    the newer kwargs (gap, vertical_alignment, border) — retries with
+    progressively fewer of them rather than crashing outright."""
+    try:
+        return st.columns(spec, **kwargs)
+    except TypeError:
+        for drop in ("vertical_alignment", "gap", "border"):
+            if drop in kwargs:
+                retry_kwargs = {k: v for k, v in kwargs.items() if k != drop}
+                try:
+                    return st.columns(spec, **retry_kwargs)
+                except TypeError:
+                    kwargs = retry_kwargs
+                    continue
+        return st.columns(spec)
+
+
+def safe_popover(label: str):
+    """st.popover if available, else st.expander as the closest native
+    substitute (predates every Streamlit release this app could run on, so
+    this branch always succeeds). Both return a context manager used the
+    same way: `with theme.safe_popover(...):`."""
+    if hasattr(st, "popover"):
+        return st.popover(label)
+    return st.expander(label)
+
+
+def safe_multiselect(label: str, options, **kwargs):
+    """st.multiselect that drops `placeholder=` if the installed build
+    predates it, instead of raising."""
+    try:
+        return st.multiselect(label, options, **kwargs)
+    except TypeError:
+        kwargs.pop("placeholder", None)
+        return st.multiselect(label, options, **kwargs)
+
+
+def safe_progress(value: float, text: str | None = None) -> None:
+    """st.progress that falls back to a plain caption under the bar if the
+    installed build predates the text= kwarg."""
+    try:
+        st.progress(value, text=text)
+    except TypeError:
+        st.progress(value)
+        if text:
+            st.caption(text)
+
+
+def action_button(label: str, key: str, primary: bool = False, **kwargs) -> bool:
+    """A real action button (Assign, Approve, Add row, Submit — as opposed
+    to toggle_button's toggle-state pills) with primary/secondary styling,
+    degrading to a plain button on a build too old for `type=` (added
+    1.31) instead of crashing the click."""
+    try:
+        return st.button(label, key=key, type=("primary" if primary else "secondary"), **kwargs)
+    except TypeError:
+        return st.button(label, key=key, **kwargs)
+
+
+def action_form_submit_button(label: str, primary: bool = False, **kwargs) -> bool:
+    """st.form_submit_button counterpart to action_button — same
+    type=-unsupported fallback."""
+    try:
+        return st.form_submit_button(label, type=("primary" if primary else "secondary"), **kwargs)
+    except TypeError:
+        return st.form_submit_button(label, **kwargs)
+
+
 def inject_css() -> None:
     primary = config.PRIMARY_COLOR
     accent = config.ACCENT_COLOR
@@ -359,7 +461,7 @@ def header(nav_items: list[str] | None = None) -> None:
     element (verified against the installed frontend bundle), which CSS
     targets directly — no ancestor :has() matching needed, which turned out
     to be unreliable for this specific block."""
-    container = st.container(key="header-band")
+    container = safe_container(key="header-band")
     with container:
         left, nav_col = st.columns([2.4, 5.6])
         with left:
@@ -373,14 +475,14 @@ def header(nav_items: list[str] | None = None) -> None:
         if nav_items:
             with nav_col:
                 active = st.session_state.get("active_view", nav_items[0])
-                nav_container = st.container(key="header-nav")
+                nav_container = safe_container(key="header-nav")
                 with nav_container:
                     widths = [len(v) + 4 for v in nav_items]
                     # A leading spacer (not trailing) pushes the items to the
                     # right edge of nav_col — i.e. the right edge of the
                     # header itself. Per-button CSS margin (not column gap)
                     # controls the ~24px space between the two tabs.
-                    cols = st.columns([max(sum(widths), 1)] + widths, gap=None)
+                    cols = safe_columns([max(sum(widths), 1)] + widths, gap=None)
                     for col, label in zip(cols[1:], nav_items):
                         with col:
                             if toggle_button(
@@ -426,9 +528,9 @@ def coverage_strip(coverage_pct: float, counts: dict[str, int]) -> None:
     inline colored stat pills, one per status count. Replaces four large
     KPI cards: this is orientation, not the focus, so it stays compact.
     counts should be an ordered dict/mapping of status label -> count."""
-    prog_col, pills_col = st.columns([2, 4], vertical_alignment="center")
+    prog_col, pills_col = safe_columns([2, 4], vertical_alignment="center")
     with prog_col:
-        st.progress(min(max(coverage_pct / 100, 0.0), 1.0), text=f"{coverage_pct:.0f}% approved")
+        safe_progress(min(max(coverage_pct / 100, 0.0), 1.0), text=f"{coverage_pct:.0f}% approved")
     with pills_col:
         pills_html = "".join(
             f'<span class="status-pill {_STATUS_PILL_CLASSES.get(label.lower(), "status-pill-unassigned")}">'
