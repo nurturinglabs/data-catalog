@@ -328,8 +328,8 @@ def inject_css() -> None:
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .tags-scope) div[data-testid="stButton"] button {{
         border-radius: 999px !important; padding: 0 18px !important; font-size: 12.5px !important;
         font-weight: 600 !important; height: 34px !important; min-height: 34px !important;
-        white-space: nowrap !important; display: flex !important; align-items: center !important;
-        justify-content: center !important; box-shadow: none !important;
+        min-width: 76px !important; white-space: nowrap !important; display: flex !important;
+        align-items: center !important; justify-content: center !important; box-shadow: none !important;
         transition: background-color .12s, border-color .12s, color .12s;
     }}
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .tags-scope) div[data-testid="stButton"] {{
@@ -758,23 +758,39 @@ def toggle_button(label: str, key: str, active: bool, use_container_width: bool 
         return st.button(marker + label, key=key, use_container_width=use_container_width)
 
 
-def pill_row(marker_key: str, values: list[str], selected: str, on_pick, scope: str = "tags-scope") -> None:
+def pill_row(
+    marker_key: str, values: list[str], selected: str, on_pick,
+    scope: str = "tags-scope", max_per_row: int = 6,
+) -> None:
     """A single-select row of toggle_button pills, each column sized to its
     own label's length so nothing truncates (short filter values and long
     page names alike). Clicking a pill calls on_pick(value) and reruns.
     scope picks which CSS region this row styles as — "tags-scope" for
     in-page filter pills — the top-level Catalog/Documentation workspace
     switcher lives inline in header() instead, not as a pill_row (see
-    inject_css's .st-key-header-nav)."""
+    inject_css's .st-key-header-nav).
+
+    Values are chunked into rows of at most max_per_row: st.columns()
+    never wraps a single row on its own, so a long value list (e.g. a
+    product with many schemas) would otherwise cram every pill onto one
+    ever-narrower line — which is also why an "All ..." pill's size used
+    to vary from product to product, purely as a side effect of how many
+    *other* pills happened to share its row that time. Each row's pills
+    stretch to fill the full width (no trailing spacer siphoning off
+    space that could go to the pills), and a CSS min-width (see
+    inject_css's .tags-scope rule) is the hard floor that keeps a label
+    from being squeezed illegibly small when a row is nearly full."""
     with st.container():
         scope_marker(scope)
-        widths = [len(v) + 4 for v in values]
-        cols = st.columns(widths + [max(sum(widths) // 2, 1)])
-        for col, value in zip(cols, values):
-            with col:
-                if toggle_button(value, key=f"{marker_key}_{value}", active=(selected == value)):
-                    on_pick(value)
-                    st.rerun()
+        for start in range(0, len(values), max_per_row):
+            chunk = values[start:start + max_per_row]
+            widths = [len(v) + 4 for v in chunk]
+            cols = st.columns(widths)
+            for col, value in zip(cols, chunk):
+                with col:
+                    if toggle_button(value, key=f"{marker_key}_{value}", active=(selected == value)):
+                        on_pick(value)
+                        st.rerun()
 
 
 def render_detail_card(row, usage_status: str | None = None) -> None:
