@@ -269,6 +269,88 @@ def test_column_with_no_curated_row_has_empty_curated_fields(workflow_fixture):
     assert bool(stale["curated_approved"]) is False
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Empty-start / null-approved handling
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_auto_seeded_column_never_blank_or_undefined_status(workflow_fixture):
+    seeded = _row(workflow.load_workflow(), "NEW_STRUCTURAL_COL")
+    assert seeded["status"] == "Unassigned"
+    assert seeded["assigned_to"] == ""
+    assert seeded["status"] in workflow.STATUSES
+
+
+def test_null_approved_is_never_treated_as_approved(workflow_fixture):
+    # Blank and explicit-None "approved" cells must both resolve to False,
+    # never Approved: bool(float('nan')) is True in plain Python, which
+    # would be exactly backwards here if a stray NaN ever slipped through.
+    curated_df = pd.DataFrame([
+        {"column_name": "TRACKED_COL", "description": "desc", "approved": ""},
+        {"column_name": "STALE_META_COL", "description": "desc2", "approved": None},
+    ])
+    curated_df.to_csv(config.WORKSPACE_CURATED_LOCAL_CSV["path"], index=False)
+
+    df = workflow.load_workflow()
+    tracked = _row(df, "TRACKED_COL")
+    stale = _row(df, "STALE_META_COL")
+    assert bool(tracked["curated_approved"]) is False
+    assert bool(stale["curated_approved"]) is False
+    assert tracked["status"] == "Submitted"   # raw stored status, not fused to Approved
+    assert stale["status"] == "Unassigned"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Query-refresh merge guard — assigned_to/status/curated description must
+# survive a Source 1 refresh; only structural fields may change.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_query_structural_vs_protected_fields_are_exactly_as_documented():
+    assert set(workflow._QUERY_STRUCTURAL_FIELDS) == {"data_product", "table_count", "tables", "schema"}
+    assert set(workflow._QUERY_PROTECTED_FIELDS) == {"assigned_to", "status", "description"}
+
+
+def test_query_refresh_preserves_assignment_status_and_curated_description(workflow_fixture):
+    workflow.save_rows(
+        [{"column_name": "STALE_META_COL", "assigned_to": "Marcus", "status": "Assigned"}], actor="coordinator",
+    )
+    workflow.save_curated_description("STALE_META_COL", "A freshly curated description.")
+
+    # Simulate a query refresh: Source 1 comes back with a different (but
+    # still matching) live description for the same column.
+    q = pd.read_csv(config.WORKSPACE_QUERY_LOCAL_CSV["path"])
+    q.loc[q["COLUMN_NAME"] == "STALE_META_COL", "DESCRIPTION"] = "Refreshed live description."
+    q.to_csv(config.WORKSPACE_QUERY_LOCAL_CSV["path"], index=False)
+
+    after = _row(workflow.load_workflow(), "STALE_META_COL")
+    assert after["assigned_to"] == "Marcus"
+    assert after["status"] == "Assigned"
+    assert after["description_curated"] == "A freshly curated description."
+    assert after["description_live"] == "Refreshed live description."
+    # Structural fields DID refresh from the new query data.
+    assert after["data_product"] == "DB2"
+    assert after["table_count"] == 1
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# unmatched_curated_columns — surfaced instead of silently dropped
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_unmatched_curated_columns_detects_typo(workflow_fixture):
+    curated_df = pd.DataFrame([
+        {"column_name": "TRACKED_COL", "description": "desc", "approved": "TRUE"},
+        {"column_name": "TOTALLY_UNKNOWN_COL", "description": "oops", "approved": "FALSE"},
+    ])
+    curated_df.to_csv(config.WORKSPACE_CURATED_LOCAL_CSV["path"], index=False)
+
+    assert workflow.unmatched_curated_columns() == ["TOTALLY_UNKNOWN_COL"]
+    # Confirmed genuinely dropped, not injected as a phantom row.
+    assert "TOTALLY_UNKNOWN_COL" not in set(workflow.load_workflow()["column_name"])
+
+
+def test_unmatched_curated_columns_empty_when_all_match(workflow_fixture):
+    assert workflow.unmatched_curated_columns() == []
+
+
 def test_manual_row_has_no_live_description_or_tables(workflow_fixture):
     manual = _row(workflow.load_workflow(), "GLOSSARY_TERM")
     assert manual["description_live"] == ""

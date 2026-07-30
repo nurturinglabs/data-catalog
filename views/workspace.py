@@ -111,7 +111,23 @@ def render() -> None:
     # ─────────────────────────────────────────────────────────────────────────────
 
     def render_coordinator(df: pd.DataFrame) -> None:
-        filter_cols = st.columns([1.4, 1.2, 1.2, 0.9, 1.1, 1.2])
+        # A curated-source row matching no known column is dropped from the
+        # grid by design (see workflow.load_workflow) — but silently is
+        # wrong; surface it so a coordinator can catch a typo or a
+        # dropped/renamed column instead of quietly losing the description.
+        unmatched = workflow.unmatched_curated_columns()
+        if unmatched:
+            with st.expander(
+                f"⚠️ {len(unmatched)} curated description(s) match no known column", expanded=False,
+            ):
+                st.caption(
+                    "These column names exist in the curated source but not in the "
+                    "workflow table or the live structure query — usually a typo, or "
+                    "a column that was documented and later dropped or renamed."
+                )
+                st.write(", ".join(unmatched))
+
+        filter_cols = st.columns([1.3, 1.1, 1.1, 0.9, 1.3, 1.0, 1.2])
         with filter_cols[0]:
             status_filter = theme.safe_multiselect(
                 "Status", workflow.STATUSES, placeholder="All statuses", key="coord_status_filter",
@@ -132,6 +148,13 @@ def render() -> None:
             st.markdown('<div style="height: 1.9rem"></div>', unsafe_allow_html=True)
             orphaned_only = st.checkbox("Orphaned only", key="coord_orphaned_filter")
         with filter_cols[4]:
+            st.markdown('<div style="height: 1.9rem"></div>', unsafe_allow_html=True)
+            # Off by default — the full backlog (N tables >= 1) is the
+            # honest resting state; this narrows to N tables > 1 only when
+            # explicitly engaged. Named for intent ("reused columns carry
+            # more blast radius if wrong"), not the underlying mechanic.
+            shared_only = st.checkbox("Shared columns only", key="coord_shared_only_filter")
+        with filter_cols[5]:
             st.markdown('<div style="height: 1.9rem"></div>', unsafe_allow_html=True)
             with theme.safe_popover("➕ Add row"):
                 with st.form("add_row_form", clear_on_submit=True):
@@ -157,13 +180,15 @@ def render() -> None:
             filtered = filtered[filtered["assigned_to"] == assignee_filter]
         if orphaned_only:
             filtered = filtered[filtered["orphaned"]]
+        if shared_only:
+            filtered = filtered[filtered["table_count"] > 1]
         filtered = filtered.sort_values("column_name").reset_index(drop=True)
 
         # Filled in now rather than up in the filter_cols block above,
         # since the CSV needs `filtered` — which depends on the other
         # filter widgets' values — but the column slot itself was already
         # laid out alongside them, so it still reads as part of that row.
-        with filter_cols[5]:
+        with filter_cols[6]:
             st.markdown('<div style="height: 1.9rem"></div>', unsafe_allow_html=True)
             st.download_button(
                 "⬇️ Download CSV",

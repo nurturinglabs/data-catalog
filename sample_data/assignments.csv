@@ -39,7 +39,7 @@ TOTAL_AMOUNT,SALES_DB,1,"Total order value in USD, including tax.",Priya,Submitt
 UNIT_PRICE,SALES_DB,2,"List price per unit at time of order, in USD.",Deepak,In progress,structure,False,Deepak,2026-06-18
 VENDOR_ID,FINANCE_DB,2,Unique identifier for a vendor.,Marcus,Approved,structure,False,Marcus,2026-06-17
 VENDOR_NAME,FINANCE_DB,1,Legal name of the vendor.,Elena,In progress,structure,False,Elena,2026-06-16
-ACCOUNT_CODE,FINANCE_DB,1,,,Unassigned,structure,False,,
+ACCOUNT_CODE,FINANCE_DB,2,,,Unassigned,structure,False,,
 ADDRESS,SALES_DB,1,,Deepak,Assigned,structure,False,Deepak,2026-07-27
 CONTACT_EMAIL,FINANCE_DB,1,Draft: Contact Email — needs review.,Marcus,In progress,structure,False,Marcus,2026-07-26
 COST_CENTER,HR_DB,1,,,Unassigned,structure,False,,

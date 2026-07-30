@@ -60,6 +60,17 @@ CANONICAL_WORKFLOW_FIELDS = [
 STATUSES = ["Unassigned", "Assigned", "In progress", "Submitted", "Approved"]
 OPEN_STATUSES = ["Unassigned", "Assigned", "In progress"]  # an assignee's "not done yet"
 
+# The ONLY fields a Source 1 (query) refresh is allowed to overwrite on an
+# already-tracked row — all structural, all re-derivable from the query
+# alone. Everything else (assigned_to, status, description, ...) is
+# human/workflow data: a coordinator's assignment must survive the next
+# query refresh, not get reset by it. Named + enforced (see the assert in
+# load_workflow) rather than left as "just don't touch the other fields in
+# this loop", so a future edit that tries to widen this list has to do so
+# on purpose, in one place, instead of by accident.
+_QUERY_STRUCTURAL_FIELDS = ["data_product", "table_count", "tables", "schema"]
+_QUERY_PROTECTED_FIELDS = ["assigned_to", "status", "description"]
+
 
 class WorkflowConflictError(Exception):
     """A row's stored updated_at differs from what the caller last saw —
@@ -365,6 +376,19 @@ def save_curated_description(column_name: str, description: str) -> None:
     _write_curated_raw(current[["column_name", "description", "approved"]])
 
 
+def unmatched_curated_columns() -> list[str]:
+    """Source 2 (curated) column_names that match nothing in the workflow
+    table or Source 1 (the query) — i.e. would otherwise be silently
+    dropped by load_workflow()'s left join onto that combined universe.
+    Usually a typo in the curated source, or a column that was documented
+    and later dropped/renamed — surfaced so a coordinator can see and fix
+    it, not lose it quietly."""
+    curated_df = _load_curated_source()
+    query_df = _load_query_source()
+    known = set(query_df["column_name"]) | set(_clean_raw(_read_raw())["column_name"])
+    return sorted(set(curated_df["column_name"]) - known)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Load + reconcile — auto-seed new structural columns, flag orphaned ones.
 # Uncached and always computed fresh: this table is written to constantly
@@ -401,6 +425,8 @@ def load_workflow() -> pd.DataFrame:
         col = r["column_name"]
         seen.add(col)
         rec = r.to_dict()
+        protected_before = {f: rec.get(f) for f in _QUERY_PROTECTED_FIELDS}
+
         if r["origin"] == "manual":
             rec["orphaned"] = False
             rec["tables"] = []
@@ -413,10 +439,18 @@ def load_workflow() -> pd.DataFrame:
                 rec["schema"] = ""
             else:
                 rec["orphaned"] = False
-                rec["data_product"] = q_row["data_product"]
-                rec["table_count"] = int(q_row["table_count"])
-                rec["tables"] = q_row["tables"]
-                rec["schema"] = q_row["schema"]
+                for field in _QUERY_STRUCTURAL_FIELDS:
+                    rec[field] = int(q_row[field]) if field == "table_count" else q_row[field]
+
+        # Guard: a query refresh must never reset a coordinator's
+        # assignment/status or the curated description on an already-
+        # tracked row. If this ever fires, something upstream started
+        # writing to a protected field and needs to be reverted, not the
+        # assert relaxed.
+        for field in _QUERY_PROTECTED_FIELDS:
+            assert rec.get(field) == protected_before[field], (
+                f"query merge must never overwrite {field!r} (column {col!r})"
+            )
         records.append(rec)
 
     # Auto-seed: every query column not already tracked here appears as a
@@ -457,8 +491,17 @@ def load_workflow() -> pd.DataFrame:
     df["description_curated"] = df["column_name"].map(
         lambda c: curated_by_col[c]["description"] if c in curated_by_col else ""
     )
+    # A null/missing approved value must mean NOT approved, never Approved.
+    # _parse_bool (used by _load_curated_source) already resolves NaN/
+    # blank/"null"-token cells to False, so this pd.notna() guard is a
+    # second, independent line of defense — cheap, and it means a future
+    # change upstream can't silently let a stray NaN through as truthy
+    # (bool(float('nan')) is True in plain Python, which would be exactly
+    # backwards here).
     df["curated_approved"] = df["column_name"].map(
-        lambda c: bool(curated_by_col[c]["approved"]) if c in curated_by_col else False
+        lambda c: bool(curated_by_col[c]["approved"])
+        if (c in curated_by_col and pd.notna(curated_by_col[c]["approved"]))
+        else False
     )
     df["status"] = [
         "Approved" if approved else status
