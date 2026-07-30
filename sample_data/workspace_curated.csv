@@ -1,0 +1,41 @@
+column_name,description,approved
+AMOUNT,"Invoice amount due, in USD.",FALSE
+AMOUNT_PAID,"Amount paid against the invoice, in USD.",FALSE
+CATEGORY,Product category used for merchandising and reporting.,FALSE
+CITY,City component of the mailing address.,FALSE
+CREATED_AT,Timestamp the record was first created.,FALSE
+CUSIP,Cross-system identifier linking finance records to a security or instrument.,TRUE
+CUSTOMER_ID,Unique identifier for a customer account.,TRUE
+DEPARTMENT_ID,Unique identifier for an organizational department.,TRUE
+DEPARTMENT_NAME,Display name of the department.,FALSE
+EMAIL,Primary email address on file.,FALSE
+EMPLOYEE_ID,Unique identifier for an employee record.,TRUE
+FIRST_NAME,Given name of the individual.,FALSE
+GROSS_PAY,"Gross pay before deductions, in USD.",FALSE
+HIRE_DATE,Date the employee's current employment began.,FALSE
+INVOICE_DATE,Date the invoice was issued.,FALSE
+INVOICE_ID,Unique identifier for a vendor invoice.,TRUE
+LAST_NAME,Family name of the individual.,FALSE
+LIFETIME_VALUE,"Modeled lifetime value of the customer, in USD.",FALSE
+MANAGER_ID,Employee ID of this employee's direct manager.,FALSE
+NET_PAY,"Net pay after deductions, in USD.",FALSE
+ORDER_DATE,Calendar date the order was placed.,FALSE
+ORDER_ID,Unique identifier for a customer order.,TRUE
+ORDER_ITEM_ID,Unique identifier for a single line item on an order.,FALSE
+PAYMENT_DATE,Date the payment was made.,FALSE
+PAYMENT_ID,Unique identifier for a payment record.,FALSE
+PAYROLL_ID,Unique identifier for a payroll run line.,FALSE
+PAY_PERIOD,Pay period the payroll entry applies to (YYYY-MM).,FALSE
+PHONE,Primary phone number on file.,FALSE
+PRODUCT_ID,Unique identifier for a product SKU.,FALSE
+PRODUCT_NAME,Human-readable product name.,FALSE
+QUANTITY,Number of units ordered for this line item.,FALSE
+SEGMENT,Marketing-assigned customer segment label.,FALSE
+SSN,Social Security Number. Restricted access.,FALSE
+STATE,Two-letter US state code.,FALSE
+STATUS,"Current lifecycle status of the record (e.g. OPEN, CLOSED).",FALSE
+TAX_ID,Vendor's tax identification number.,FALSE
+TOTAL_AMOUNT,"Total order value in USD, including tax.",FALSE
+UNIT_PRICE,"List price per unit at time of order, in USD.",FALSE
+VENDOR_ID,Unique identifier for a vendor.,TRUE
+VENDOR_NAME,Legal name of the vendor.,FALSE

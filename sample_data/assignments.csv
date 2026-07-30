@@ -1,56 +1,56 @@
 column_name,data_product,table_count,description,assigned_to,status,origin,orphaned,updated_by,updated_at
-AMOUNT,FINANCE_DB,1,"Invoice amount due, in USD.",Priya,Assigned,structure,False,Priya,2026-07-28T00:19:58
-AMOUNT_PAID,FINANCE_DB,1,"Amount paid against the invoice, in USD.",Deepak,In progress,structure,False,Deepak,2026-07-20
-CATEGORY,SALES_DB,1,Product category used for merchandising and reporting.,Marcus,Approved,structure,False,Priya,2026-07-27T23:58:17
-CITY,SALES_DB,1,City component of the mailing address.,Elena,In progress,structure,False,Elena,2026-07-18
-CREATED_AT,SALES_DB,2,Timestamp the record was first created.,Priya,Submitted,structure,False,Priya,2026-07-17
-CUSIP,FINANCE_DB,4,Cross-system identifier linking finance records to a security or instrument.,Deepak,Approved,structure,False,Deepak,2026-07-16
-CUSTOMER_ID,SALES_DB,4,Unique identifier for a customer account.,Marcus,Approved,structure,False,Marcus,2026-07-15
-DEPARTMENT_ID,HR_DB,2,Unique identifier for an organizational department.,Elena,Approved,structure,False,Elena,2026-07-14
-DEPARTMENT_NAME,HR_DB,1,Display name of the department.,Priya,Submitted,structure,False,Priya,2026-07-13
-EMAIL,"HR_DB, SALES_DB",2,Primary email address on file.,Deepak,In progress,structure,False,Deepak,2026-07-12
-EMPLOYEE_ID,HR_DB,2,Unique identifier for an employee record.,Marcus,Approved,structure,False,Marcus,2026-07-11
-FIRST_NAME,"HR_DB, SALES_DB",2,Given name of the individual.,Elena,In progress,structure,False,Elena,2026-07-10
-GROSS_PAY,HR_DB,1,"Gross pay before deductions, in USD.",Priya,Approved,structure,False,Priya,2026-07-27T23:58:25
-HIRE_DATE,HR_DB,1,Date the employee's current employment began.,Deepak,In progress,structure,False,Deepak,2026-07-08
-INVOICE_DATE,FINANCE_DB,1,Date the invoice was issued.,Marcus,Submitted,structure,False,Marcus,2026-07-07
-INVOICE_ID,FINANCE_DB,2,Unique identifier for a vendor invoice.,Elena,Approved,structure,False,Elena,2026-07-06
-LAST_NAME,"HR_DB, SALES_DB",2,Family name of the individual.,Priya,Approved,structure,False,Priya,2026-07-27T23:58:57
-LIFETIME_VALUE,SALES_DB,1,"Modeled lifetime value of the customer, in USD.",Deepak,In progress,structure,False,Deepak,2026-07-04
-MANAGER_ID,HR_DB,1,Employee ID of this employee's direct manager.,Marcus,Submitted,structure,False,Marcus,2026-07-03
-NET_PAY,HR_DB,1,"Net pay after deductions, in USD.",Elena,In progress,structure,False,Elena,2026-07-02
-ORDER_DATE,SALES_DB,1,Calendar date the order was placed.,Priya,Submitted,structure,False,Priya,2026-07-01
-ORDER_ID,SALES_DB,2,Unique identifier for a customer order.,Deepak,Approved,structure,False,Deepak,2026-06-30
-ORDER_ITEM_ID,SALES_DB,1,Unique identifier for a single line item on an order.,Marcus,Submitted,structure,False,Marcus,2026-06-29
-PAYMENT_DATE,FINANCE_DB,1,Date the payment was made.,Elena,In progress,structure,False,Elena,2026-06-28
-PAYMENT_ID,FINANCE_DB,1,Unique identifier for a payment record.,Priya,Submitted,structure,False,Priya,2026-06-27
-PAYROLL_ID,HR_DB,1,Unique identifier for a payroll run line.,Deepak,In progress,structure,False,Deepak,2026-06-26
-PAY_PERIOD,HR_DB,1,Pay period the payroll entry applies to (YYYY-MM).,Marcus,Submitted,structure,False,Marcus,2026-06-25
-PHONE,SALES_DB,1,Primary phone number on file.,Elena,In progress,structure,False,Elena,2026-06-24
-PRODUCT_ID,SALES_DB,2,Unique identifier for a product SKU.,Priya,Submitted,structure,False,Priya,2026-06-23
-PRODUCT_NAME,SALES_DB,1,Human-readable product name.,Deepak,In progress,structure,False,Deepak,2026-06-22
-QUANTITY,SALES_DB,1,Number of units ordered for this line item.,Marcus,Submitted,structure,False,Marcus,2026-06-21
-SEGMENT,SALES_DB,1,Marketing-assigned customer segment label.,Elena,In progress,structure,False,Elena,2026-06-20
-SSN,HR_DB,1,Social Security Number. Restricted access.,Priya,Submitted,structure,False,Priya,2026-06-19
-STATE,SALES_DB,1,Two-letter US state code.,Deepak,In progress,structure,False,Deepak,2026-06-18
-STATUS,"FINANCE_DB, SALES_DB",2,"Current lifecycle status of the record (e.g. OPEN, CLOSED).",Marcus,Submitted,structure,False,Marcus,2026-06-17
-TAX_ID,FINANCE_DB,1,Vendor's tax identification number.,Elena,In progress,structure,False,Elena,2026-06-16
-TOTAL_AMOUNT,SALES_DB,1,"Total order value in USD, including tax.",Priya,Submitted,structure,False,Priya,2026-06-15
-UNIT_PRICE,SALES_DB,2,"List price per unit at time of order, in USD.",Deepak,In progress,structure,False,Deepak,2026-06-14
-VENDOR_ID,FINANCE_DB,2,Unique identifier for a vendor.,Marcus,Approved,structure,False,Marcus,2026-06-13
-VENDOR_NAME,FINANCE_DB,1,Legal name of the vendor.,Elena,In progress,structure,False,Elena,2026-06-12
+AMOUNT,FINANCE_DB,1,"Invoice amount due, in USD.",Priya,Submitted,structure,False,Priya,2026-07-25
+AMOUNT_PAID,FINANCE_DB,1,"Amount paid against the invoice, in USD.",Deepak,In progress,structure,False,Deepak,2026-07-24
+CATEGORY,SALES_DB,1,Product category used for merchandising and reporting.,Marcus,Submitted,structure,False,Marcus,2026-07-23
+CITY,SALES_DB,1,City component of the mailing address.,Elena,In progress,structure,False,Elena,2026-07-22
+CREATED_AT,SALES_DB,2,Timestamp the record was first created.,Priya,Submitted,structure,False,Priya,2026-07-21
+CUSIP,FINANCE_DB,4,Cross-system identifier linking finance records to a security or instrument.,Deepak,Approved,structure,False,Deepak,2026-07-20
+CUSTOMER_ID,SALES_DB,4,Unique identifier for a customer account.,Marcus,Approved,structure,False,Marcus,2026-07-19
+DEPARTMENT_ID,HR_DB,2,Unique identifier for an organizational department.,Elena,Approved,structure,False,Elena,2026-07-18
+DEPARTMENT_NAME,HR_DB,1,Display name of the department.,Priya,Submitted,structure,False,Priya,2026-07-17
+EMAIL,"HR_DB, SALES_DB",2,Primary email address on file.,Deepak,In progress,structure,False,Deepak,2026-07-16
+EMPLOYEE_ID,HR_DB,2,Unique identifier for an employee record.,Marcus,Approved,structure,False,Marcus,2026-07-15
+FIRST_NAME,"HR_DB, SALES_DB",2,Given name of the individual.,Elena,In progress,structure,False,Elena,2026-07-14
+GROSS_PAY,HR_DB,1,"Gross pay before deductions, in USD.",Priya,Submitted,structure,False,Priya,2026-07-13
+HIRE_DATE,HR_DB,1,Date the employee's current employment began.,Deepak,In progress,structure,False,Deepak,2026-07-12
+INVOICE_DATE,FINANCE_DB,1,Date the invoice was issued.,Marcus,Submitted,structure,False,Marcus,2026-07-11
+INVOICE_ID,FINANCE_DB,2,Unique identifier for a vendor invoice.,Elena,Approved,structure,False,Elena,2026-07-10
+LAST_NAME,"HR_DB, SALES_DB",2,Family name of the individual.,Priya,Submitted,structure,False,Priya,2026-07-09
+LIFETIME_VALUE,SALES_DB,1,"Modeled lifetime value of the customer, in USD.",Deepak,In progress,structure,False,Deepak,2026-07-08
+MANAGER_ID,HR_DB,1,Employee ID of this employee's direct manager.,Marcus,Submitted,structure,False,Marcus,2026-07-07
+NET_PAY,HR_DB,1,"Net pay after deductions, in USD.",Elena,In progress,structure,False,Elena,2026-07-06
+ORDER_DATE,SALES_DB,1,Calendar date the order was placed.,Priya,Submitted,structure,False,Priya,2026-07-05
+ORDER_ID,SALES_DB,2,Unique identifier for a customer order.,Deepak,Approved,structure,False,Deepak,2026-07-04
+ORDER_ITEM_ID,SALES_DB,1,Unique identifier for a single line item on an order.,Marcus,Submitted,structure,False,Marcus,2026-07-03
+PAYMENT_DATE,FINANCE_DB,1,Date the payment was made.,Elena,In progress,structure,False,Elena,2026-07-02
+PAYMENT_ID,FINANCE_DB,1,Unique identifier for a payment record.,Priya,Submitted,structure,False,Priya,2026-07-01
+PAYROLL_ID,HR_DB,1,Unique identifier for a payroll run line.,Deepak,In progress,structure,False,Deepak,2026-06-30
+PAY_PERIOD,HR_DB,1,Pay period the payroll entry applies to (YYYY-MM).,Marcus,Submitted,structure,False,Marcus,2026-06-29
+PHONE,SALES_DB,1,Primary phone number on file.,Elena,In progress,structure,False,Elena,2026-06-28
+PRODUCT_ID,SALES_DB,2,Unique identifier for a product SKU.,Priya,Submitted,structure,False,Priya,2026-06-27
+PRODUCT_NAME,SALES_DB,1,Human-readable product name.,Deepak,In progress,structure,False,Deepak,2026-06-26
+QUANTITY,SALES_DB,1,Number of units ordered for this line item.,Marcus,Submitted,structure,False,Marcus,2026-06-25
+SEGMENT,SALES_DB,1,Marketing-assigned customer segment label.,Elena,In progress,structure,False,Elena,2026-06-24
+SSN,HR_DB,1,Social Security Number. Restricted access.,Priya,Submitted,structure,False,Priya,2026-06-23
+STATE,SALES_DB,1,Two-letter US state code.,Deepak,In progress,structure,False,Deepak,2026-06-22
+STATUS,"FINANCE_DB, SALES_DB",2,"Current lifecycle status of the record (e.g. OPEN, CLOSED).",Marcus,Submitted,structure,False,Marcus,2026-06-21
+TAX_ID,FINANCE_DB,1,Vendor's tax identification number.,Elena,In progress,structure,False,Elena,2026-06-20
+TOTAL_AMOUNT,SALES_DB,1,"Total order value in USD, including tax.",Priya,Submitted,structure,False,Priya,2026-06-19
+UNIT_PRICE,SALES_DB,2,"List price per unit at time of order, in USD.",Deepak,In progress,structure,False,Deepak,2026-06-18
+VENDOR_ID,FINANCE_DB,2,Unique identifier for a vendor.,Marcus,Approved,structure,False,Marcus,2026-06-17
+VENDOR_NAME,FINANCE_DB,1,Legal name of the vendor.,Elena,In progress,structure,False,Elena,2026-06-16
 ACCOUNT_CODE,FINANCE_DB,1,,,Unassigned,structure,False,,
-ADDRESS,SALES_DB,1,,Priya,Assigned,structure,False,Priya,2026-07-28T00:20:02
-CONTACT_EMAIL,FINANCE_DB,1,Draft: Contact Email — needs review.,Marcus,In progress,structure,False,Marcus,2026-07-22
+ADDRESS,SALES_DB,1,,Deepak,Assigned,structure,False,Deepak,2026-07-27
+CONTACT_EMAIL,FINANCE_DB,1,Draft: Contact Email — needs review.,Marcus,In progress,structure,False,Marcus,2026-07-26
 COST_CENTER,HR_DB,1,,,Unassigned,structure,False,,
-CREDIT_AMOUNT,FINANCE_DB,1,,Priya,Assigned,structure,False,Priya,2026-07-20
-DEBIT_AMOUNT,FINANCE_DB,1,Draft: Debit Amount — needs review.,Deepak,In progress,structure,False,Deepak,2026-07-19
+CREDIT_AMOUNT,FINANCE_DB,1,,Priya,Assigned,structure,False,Priya,2026-07-24
+DEBIT_AMOUNT,FINANCE_DB,1,Draft: Debit Amount — needs review.,Deepak,In progress,structure,False,Deepak,2026-07-23
 GL_ENTRY_ID,FINANCE_DB,1,,,Unassigned,structure,False,,
-METHOD,FINANCE_DB,1,,Elena,Assigned,structure,False,Elena,2026-07-17
-ORDER_COUNT,SALES_DB,1,Draft: Order Count — needs review.,Priya,In progress,structure,False,Priya,2026-07-16
+METHOD,FINANCE_DB,1,,Elena,Assigned,structure,False,Elena,2026-07-21
+ORDER_COUNT,SALES_DB,1,Draft: Order Count — needs review.,Priya,In progress,structure,False,Priya,2026-07-20
 PERIOD,SALES_DB,1,,,Unassigned,structure,False,,
-SUPPLIER_ID,SALES_DB,1,,Marcus,Assigned,structure,False,Marcus,2026-07-14
-TAX_WITHHELD,HR_DB,1,Draft: Tax Withheld — needs review.,Elena,In progress,structure,False,Elena,2026-07-13
+SUPPLIER_ID,SALES_DB,1,,Marcus,Assigned,structure,False,Marcus,2026-07-18
+TAX_WITHHELD,HR_DB,1,Draft: Tax Withheld — needs review.,Elena,In progress,structure,False,Elena,2026-07-17
 TOTAL_SALES,SALES_DB,1,,,Unassigned,structure,False,,
-NET_REVENUE_MARGIN,FINANCE_DB,0,"Business-defined ratio of net revenue to gross revenue, used in board reporting. Not a physical column — defined here for the glossary.",Priya,Submitted,manual,False,Priya,2026-07-16
-LEGACY_ACCOUNT_CODE,FINANCE_DB,1,"Legacy GL account code, superseded by ACCOUNT_CODE.",Marcus,Approved,structure,True,Marcus,2026-01-07
+NET_REVENUE_MARGIN,FINANCE_DB,0,"Business-defined ratio of net revenue to gross revenue, used in board reporting. Not a physical column — defined here for the glossary.",Priya,Submitted,manual,False,Priya,2026-07-20
+LEGACY_ACCOUNT_CODE,FINANCE_DB,1,"Legacy GL account code, superseded by ACCOUNT_CODE.",Marcus,Approved,structure,True,Marcus,2026-01-11

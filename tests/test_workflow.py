@@ -13,10 +13,13 @@ import workflow
 
 @pytest.fixture
 def workflow_fixture(tmp_path):
-    """Small structure.csv + assignments.csv, with config pointed at both
-    and DESCRIPTIONS_SOURCE set to "workflow_table" (the default), so
-    data.load_catalog() and workflow.load_workflow() operate on the same
-    underlying store."""
+    """structure.csv + assignments.csv + workspace_query.csv (Source 1) +
+    workspace_curated.csv (Source 2), with config pointed at all four.
+    structure.csv/DESCRIPTIONS_SOURCE="workflow_table" are only exercised by
+    the data.py-side test at the bottom of this file (data._build_catalog_
+    and_health() is a separate pipeline from workflow.load_workflow(),
+    which now reads data_product/table_count/orphaned from Source 1, not
+    data.load_catalog())."""
     structure_rows = [
         ("DB1", "PUBLIC", "TABLE_A", "TRACKED_COL", "VARCHAR(50)"),
         ("DB1", "PUBLIC", "TABLE_B", "TRACKED_COL", "VARCHAR(50)"),
@@ -29,6 +32,35 @@ def workflow_fixture(tmp_path):
     )
     structure_path = tmp_path / "structure.csv"
     structure_df.to_csv(structure_path, index=False)
+
+    # Source 1 — same logical shape as structure_rows above, but qualified
+    # as one name column (DATA_PRODUCT.SCHEMA.TABLE) the way a real
+    # warehouse query returns it, plus its own "live" description.
+    # GONE_COL and GLOSSARY_TERM are deliberately absent (orphaned / manual).
+    workspace_query_df = pd.DataFrame([
+        {"QUALIFIED_OBJECT_NAME": "DB1.PUBLIC.TABLE_A", "COLUMN_NAME": "TRACKED_COL",
+         "ORDINAL_POSITION": 1, "DESCRIPTION": "Live: tracked column, table A."},
+        {"QUALIFIED_OBJECT_NAME": "DB1.PUBLIC.TABLE_B", "COLUMN_NAME": "TRACKED_COL",
+         "ORDINAL_POSITION": 1, "DESCRIPTION": ""},
+        {"QUALIFIED_OBJECT_NAME": "DB1.PUBLIC.TABLE_A", "COLUMN_NAME": "NEW_STRUCTURAL_COL",
+         "ORDINAL_POSITION": 2, "DESCRIPTION": ""},
+        {"QUALIFIED_OBJECT_NAME": "DB2.PUBLIC.TABLE_C", "COLUMN_NAME": "STALE_META_COL",
+         "ORDINAL_POSITION": 1, "DESCRIPTION": ""},
+    ])
+    workspace_query_path = tmp_path / "workspace_query.csv"
+    workspace_query_df.to_csv(workspace_query_path, index=False)
+
+    # Source 2 — independent curated feed. TRACKED_COL is both curated AND
+    # pre-approved (tests the description_curated vs description_live
+    # divergence and the approved->fused-status behavior in one row);
+    # NEW_STRUCTURAL_COL is curated but not yet approved (description_curated
+    # populated, status stays whatever the workflow table says).
+    workspace_curated_df = pd.DataFrame([
+        {"column_name": "TRACKED_COL", "description": "Curated: a tracked column.", "approved": "TRUE"},
+        {"column_name": "NEW_STRUCTURAL_COL", "description": "Curated draft, not yet approved.", "approved": "FALSE"},
+    ])
+    workspace_curated_path = tmp_path / "workspace_curated.csv"
+    workspace_curated_df.to_csv(workspace_curated_path, index=False)
 
     assignments_df = pd.DataFrame([
         {"column_name": "TRACKED_COL", "data_product": "DB1", "table_count": 2,
@@ -61,6 +93,14 @@ def workflow_fixture(tmp_path):
         "WORKFLOW_ASSIGNEES": list(config.WORKFLOW_ASSIGNEES),
         "USAGE_ENABLED": config.USAGE_ENABLED,
         "DATABASE_ALLOWLIST": list(config.DATABASE_ALLOWLIST),
+        "WORKSPACE_QUERY_SOURCE": config.WORKSPACE_QUERY_SOURCE,
+        "WORKSPACE_QUERY_LOCAL_CSV": dict(config.WORKSPACE_QUERY_LOCAL_CSV),
+        "WORKSPACE_QUERY_MAP": dict(config.WORKSPACE_QUERY_MAP),
+        "WORKSPACE_QUALIFIED_NAME_DELIMITER": config.WORKSPACE_QUALIFIED_NAME_DELIMITER,
+        "WORKSPACE_QUALIFIED_NAME_PARTS": list(config.WORKSPACE_QUALIFIED_NAME_PARTS),
+        "WORKSPACE_CURATED_SOURCE": config.WORKSPACE_CURATED_SOURCE,
+        "WORKSPACE_CURATED_LOCAL_CSV": dict(config.WORKSPACE_CURATED_LOCAL_CSV),
+        "WORKSPACE_CURATED_MAP": dict(config.WORKSPACE_CURATED_MAP),
     }
 
     config.STRUCT_LOCAL_CSV = {"path": str(structure_path)}
@@ -74,6 +114,19 @@ def workflow_fixture(tmp_path):
     config.WORKFLOW_ASSIGNEES = ["Priya", "Deepak", "Marcus", "Elena"]
     config.USAGE_ENABLED = False
     config.DATABASE_ALLOWLIST = []
+    config.WORKSPACE_QUERY_SOURCE = "local_csv"
+    config.WORKSPACE_QUERY_LOCAL_CSV = {"path": str(workspace_query_path)}
+    config.WORKSPACE_QUERY_MAP = {
+        "qualified_object_name": "QUALIFIED_OBJECT_NAME", "column_name": "COLUMN_NAME",
+        "ordinal_position": "ORDINAL_POSITION", "description": "DESCRIPTION",
+    }
+    config.WORKSPACE_QUALIFIED_NAME_DELIMITER = "."
+    config.WORKSPACE_QUALIFIED_NAME_PARTS = ["data_product", "schema", "table"]
+    config.WORKSPACE_CURATED_SOURCE = "local_csv"
+    config.WORKSPACE_CURATED_LOCAL_CSV = {"path": str(workspace_curated_path)}
+    config.WORKSPACE_CURATED_MAP = {
+        "column_name": "column_name", "description": "description", "approved": "approved",
+    }
 
     data.clear_cache()
     yield tmp_path
@@ -88,6 +141,14 @@ def workflow_fixture(tmp_path):
     config.WORKFLOW_ASSIGNEES = orig["WORKFLOW_ASSIGNEES"]
     config.USAGE_ENABLED = orig["USAGE_ENABLED"]
     config.DATABASE_ALLOWLIST = orig["DATABASE_ALLOWLIST"]
+    config.WORKSPACE_QUERY_SOURCE = orig["WORKSPACE_QUERY_SOURCE"]
+    config.WORKSPACE_QUERY_LOCAL_CSV = orig["WORKSPACE_QUERY_LOCAL_CSV"]
+    config.WORKSPACE_QUERY_MAP = orig["WORKSPACE_QUERY_MAP"]
+    config.WORKSPACE_QUALIFIED_NAME_DELIMITER = orig["WORKSPACE_QUALIFIED_NAME_DELIMITER"]
+    config.WORKSPACE_QUALIFIED_NAME_PARTS = orig["WORKSPACE_QUALIFIED_NAME_PARTS"]
+    config.WORKSPACE_CURATED_SOURCE = orig["WORKSPACE_CURATED_SOURCE"]
+    config.WORKSPACE_CURATED_LOCAL_CSV = orig["WORKSPACE_CURATED_LOCAL_CSV"]
+    config.WORKSPACE_CURATED_MAP = orig["WORKSPACE_CURATED_MAP"]
 
 
 def _row(df, column_name):
@@ -133,15 +194,124 @@ def test_structure_row_metadata_refreshed_from_live_structure(workflow_fixture):
 
 
 def test_tracked_column_not_reseeded(workflow_fixture):
+    # STALE_META_COL (not curated-approved, unlike TRACKED_COL in this
+    # fixture — see test_curated_approved_fuses_status_to_approved) so its
+    # stored status carries straight through with no fusion involved.
     df = workflow.load_workflow()
-    matches = df[df["column_name"] == "TRACKED_COL"]
+    matches = df[df["column_name"] == "STALE_META_COL"]
     assert len(matches) == 1
-    assert matches.iloc[0]["status"] == "Submitted"
+    assert matches.iloc[0]["status"] == "Unassigned"
 
 
 def test_canonical_field_contract(workflow_fixture):
+    """load_workflow() must always return every persisted field (the
+    save_rows/_clean_raw contract) plus the derived-only Source 1/2
+    overlay columns — but save_rows/_clean_raw themselves only ever see
+    CANONICAL_WORKFLOW_FIELDS, so none of the derived columns can leak
+    into what's written back to COLUMN_ASSIGNMENTS."""
     df = workflow.load_workflow()
-    assert list(df.columns) == workflow.CANONICAL_WORKFLOW_FIELDS
+    assert set(workflow.CANONICAL_WORKFLOW_FIELDS) <= set(df.columns)
+    for extra in ["tables", "schema", "description_live", "description_curated", "curated_approved"]:
+        assert extra in df.columns
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Source 1 (query) + Source 2 (curated) join — the locked decisions
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_data_product_and_schema_derived_from_query(workflow_fixture):
+    tracked = _row(workflow.load_workflow(), "TRACKED_COL")
+    assert tracked["data_product"] == "DB1"
+    assert tracked["schema"] == "PUBLIC"
+
+
+def test_table_count_reflects_distinct_query_tables(workflow_fixture):
+    # TRACKED_COL appears in 2 qualified tables in workspace_query.csv,
+    # despite assignments.csv's stored table_count also happening to be 2
+    # here — table_count now always comes fresh from the query, not the
+    # stored value (test_structure_row_metadata_refreshed_from_live_structure
+    # already proves a *mismatched* stored value gets overwritten).
+    tracked = _row(workflow.load_workflow(), "TRACKED_COL")
+    assert tracked["table_count"] == 2
+    assert sorted(tracked["tables"]) == ["DB1.PUBLIC.TABLE_A", "DB1.PUBLIC.TABLE_B"]
+
+
+def test_description_live_and_curated_are_independent(workflow_fixture):
+    tracked = _row(workflow.load_workflow(), "TRACKED_COL")
+    assert tracked["description_live"] == "Live: tracked column, table A."
+    assert tracked["description_curated"] == "Curated: a tracked column."
+    assert tracked["description_live"] != tracked["description_curated"]
+    # The workflow table's OWN "description" field is untouched by either.
+    assert tracked["description"] == "A tracked column."
+
+
+def test_curated_approved_fuses_status_to_approved(workflow_fixture):
+    # TRACKED_COL's stored workflow status is "Submitted", but Source 2
+    # marks it approved=TRUE -> the *displayed* status must show Approved.
+    tracked = _row(workflow.load_workflow(), "TRACKED_COL")
+    assert bool(tracked["curated_approved"]) is True
+    assert tracked["status"] == "Approved"
+
+
+def test_curated_not_approved_leaves_raw_status(workflow_fixture):
+    # NEW_STRUCTURAL_COL is curated (has a description_curated) but
+    # approved=FALSE -> status stays whatever it already was (auto-seeded
+    # Unassigned here), not forced to anything.
+    seeded = _row(workflow.load_workflow(), "NEW_STRUCTURAL_COL")
+    assert seeded["description_curated"] == "Curated draft, not yet approved."
+    assert bool(seeded["curated_approved"]) is False
+    assert seeded["status"] == "Unassigned"
+
+
+def test_column_with_no_curated_row_has_empty_curated_fields(workflow_fixture):
+    stale = _row(workflow.load_workflow(), "STALE_META_COL")
+    assert stale["description_curated"] == ""
+    assert bool(stale["curated_approved"]) is False
+
+
+def test_manual_row_has_no_live_description_or_tables(workflow_fixture):
+    manual = _row(workflow.load_workflow(), "GLOSSARY_TERM")
+    assert manual["description_live"] == ""
+    assert manual["tables"] == []
+
+
+def test_split_qualified_name_uses_configured_delimiter_and_parts(workflow_fixture):
+    assert workflow._split_qualified_name("DB1.PUBLIC.TABLE_A") == {
+        "data_product": "DB1", "schema": "PUBLIC", "table": "TABLE_A",
+    }
+    config.WORKSPACE_QUALIFIED_NAME_DELIMITER = "/"
+    config.WORKSPACE_QUALIFIED_NAME_PARTS = ["schema", "data_product", "table"]
+    assert workflow._split_qualified_name("PUBLIC/DB1/TABLE_A") == {
+        "schema": "PUBLIC", "data_product": "DB1", "table": "TABLE_A",
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# save_curated_description — Source 2's own write path
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_save_curated_description_updates_existing_row(workflow_fixture):
+    workflow.save_curated_description("TRACKED_COL", "Updated curated text.")
+    curated = workflow._load_curated_source()
+    row = curated[curated["column_name"] == "TRACKED_COL"].iloc[0]
+    assert row["description"] == "Updated curated text."
+    assert bool(row["approved"]) is True  # untouched by the description-only save
+
+
+def test_save_curated_description_inserts_new_row(workflow_fixture):
+    workflow.save_curated_description("STALE_META_COL", "First curated draft.")
+    curated = workflow._load_curated_source()
+    row = curated[curated["column_name"] == "STALE_META_COL"].iloc[0]
+    assert row["description"] == "First curated draft."
+    assert bool(row["approved"]) is False
+
+
+def test_save_curated_description_does_not_touch_workflow_table(workflow_fixture):
+    workflow.save_curated_description("TRACKED_COL", "Some new curated text.")
+    raw = pd.read_csv(config.WORKFLOW_LOCAL_CSV["path"])
+    row = raw[raw["column_name"] == "TRACKED_COL"].iloc[0]
+    assert row["description"] == "A tracked column."  # workflow's own field, unchanged
+    assert row["status"] == "Submitted"  # unchanged
 
 
 # ─────────────────────────────────────────────────────────────────────────────

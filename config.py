@@ -194,6 +194,77 @@ WORKFLOW_TABLE = {
 # directory (e.g. a Snowflake role/user list).
 WORKFLOW_ASSIGNEES = ["Priya", "Deepak", "Marcus", "Elena"]
 
+# ── Layer 5 — workspace query + curated join (Documentation workspace table) ─
+# The workspace table's OWN two feeds — distinct from the Layer 2 structure
+# (Catalog page) and Layer 4 workflow (assigned_to/status bookkeeping)
+# above. Source 1 is a live structure+description query shaped the way a
+# real warehouse query actually returns it (one already-qualified name
+# column, not separate database/schema/table columns); Source 2 is an
+# independently curated descriptions/approval feed (e.g. an existing
+# glossary export) — distinct from the workflow table, which stays the
+# source of assigned_to/status. Neither is required for data.load_catalog()
+# or the Catalog page — DESCRIPTIONS_SOURCE above is untouched.
+
+# Source 1 — the query: qualified_object_name, column_name,
+# ordinal_position, description (the query's own "live" description).
+# One of: "local_csv" | "snowflake_query".
+WORKSPACE_QUERY_SOURCE = "local_csv"
+
+WORKSPACE_QUERY_LOCAL_CSV = {
+    "path": "sample_data/workspace_query.csv",
+}
+
+# Used when WORKSPACE_QUERY_SOURCE == "snowflake_query". A STARTING
+# TEMPLATE like USAGE_QUERY above — validate against your real warehouse
+# (exact quoting/column names) before relying on it.
+WORKSPACE_QUERY_SQL = """
+SELECT
+    TABLE_CATALOG || '.' || TABLE_SCHEMA || '.' || TABLE_NAME AS QUALIFIED_OBJECT_NAME,
+    COLUMN_NAME,
+    ORDINAL_POSITION,
+    COMMENT AS DESCRIPTION
+FROM SNOWFLAKE.ACCOUNT_USAGE.COLUMNS
+WHERE DELETED IS NULL
+  AND TABLE_SCHEMA <> 'INFORMATION_SCHEMA'
+"""
+
+# Canonical field -> header name in the raw query result.
+WORKSPACE_QUERY_MAP = {
+    "qualified_object_name": "QUALIFIED_OBJECT_NAME",
+    "column_name": "COLUMN_NAME",
+    "ordinal_position": "ORDINAL_POSITION",
+    "description": "DESCRIPTION",
+}
+
+# qualified_object_name split: delimiter + which position is which part, in
+# order. A differently-quoted/ordered environment (e.g. SCHEMA.PRODUCT.TABLE,
+# or a delimiter other than ".") is a config-only change — no code edits.
+WORKSPACE_QUALIFIED_NAME_DELIMITER = "."
+WORKSPACE_QUALIFIED_NAME_PARTS = ["data_product", "schema", "table"]
+
+# Source 2 — the curated CSV: column_name, description, approved. An
+# authored/curated feed independent of the workflow table (Layer 4) — e.g.
+# an existing enterprise glossary export. One of: "local_csv" |
+# "snowflake_table".
+WORKSPACE_CURATED_SOURCE = "local_csv"
+
+WORKSPACE_CURATED_LOCAL_CSV = {
+    "path": "sample_data/workspace_curated.csv",
+}
+
+WORKSPACE_CURATED_TABLE = {
+    "table": "MY_DB.MY_SCHEMA.CURATED_DESCRIPTIONS",
+}
+
+# Canonical field -> header name in the raw curated source. Required:
+# column_name, description. Optional: approved (same truthy tokens as
+# DESCRIPTION_MAP's approved field: TRUE/YES/Y/1/APPROVED/X).
+WORKSPACE_CURATED_MAP = {
+    "column_name": "column_name",
+    "description": "description",
+    "approved": "approved",
+}
+
 # ── Join / display ───────────────────────────────────────────────────────────
 # One of: "column_name" | "schema.column" | "table.column"
 JOIN_GRAIN = "column_name"

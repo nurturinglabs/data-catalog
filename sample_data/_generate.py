@@ -324,6 +324,59 @@ def build_assignments_df() -> pd.DataFrame:
     ])
 
 
+# A handful of columns get a "live" (query-sourced) description, distinct
+# in wording from DESCRIPTIONS' curated text — so the workspace table's
+# curated-vs-live columns visibly diverge for the same column_name rather
+# than just duplicating each other. Most columns get no live description at
+# all (query comments are often sparser than a curated glossary).
+LIVE_DESCRIPTIONS = {
+    "CUSTOMER_ID": "Warehouse comment: surrogate key, customers table.",
+    "CUSIP": "Warehouse comment: 9-char security identifier.",
+    "ORDER_ID": "Warehouse comment: order surrogate key.",
+    "EMPLOYEE_ID": "Warehouse comment: HR system employee key.",
+    "INVOICE_ID": "Warehouse comment: AP invoice surrogate key.",
+    "EMAIL": "Warehouse comment: contact email, unvalidated.",
+    "STATUS": "Warehouse comment: free-text lifecycle state.",
+    "CREATED_AT": "Warehouse comment: row insert timestamp (UTC).",
+}
+
+
+def build_workspace_query_df() -> pd.DataFrame:
+    """Source 1 for the Documentation workspace table — a live
+    structure+description query shaped as QUALIFIED_OBJECT_NAME (not
+    separate database/schema/table columns), mirroring how a real
+    warehouse query actually returns it. Built from the same TABLES dict
+    as structure.csv, so N-tables/data-product counts stay consistent with
+    the rest of the demo (CUSIP/CUSTOMER_ID etc. are already multi-table)."""
+    rows = []
+    for (db, schema, table), columns in TABLES.items():
+        qualified = f"{db}.{schema}.{table}"
+        for position, col in enumerate(columns, start=1):
+            rows.append({
+                "QUALIFIED_OBJECT_NAME": qualified,
+                "COLUMN_NAME": col,
+                "ORDINAL_POSITION": position,
+                "DESCRIPTION": LIVE_DESCRIPTIONS.get(col, ""),
+            })
+    return pd.DataFrame(rows)
+
+
+def build_workspace_curated_df() -> pd.DataFrame:
+    """Source 2 for the Documentation workspace table — an independently
+    curated descriptions/approval feed, distinct from the workflow table.
+    Reuses the same DESCRIPTIONS dict descriptions.csv is built from (partial
+    coverage by design — some columns curated, some not), repackaged into
+    this source's own column_name/description/approved shape."""
+    rows = []
+    for col, (desc, _tags, _steward, approved) in sorted(DESCRIPTIONS.items()):
+        rows.append({
+            "column_name": col,
+            "description": desc,
+            "approved": "TRUE" if approved else "FALSE",
+        })
+    return pd.DataFrame(rows)
+
+
 def build_usage_df() -> pd.DataFrame:
     rows = []
     for col, table, consumer_name, consumer_type, days_ago, query_count in USAGE_ROWS:
@@ -343,6 +396,8 @@ def main():
     descriptions_df = build_descriptions_df()
     usage_df = build_usage_df()
     assignments_df = build_assignments_df()
+    workspace_query_df = build_workspace_query_df()
+    workspace_curated_df = build_workspace_curated_df()
 
     distinct_cols = {col for cols in TABLES.values() for col in cols}
     n_dbs = len({db for db, _, _ in TABLES})
@@ -374,15 +429,33 @@ def main():
         "every structural column must be either assigned or deliberately omitted"
     )
 
+    workspace_query_tables_by_col: dict = {}
+    for _, r in workspace_query_df.iterrows():
+        workspace_query_tables_by_col.setdefault(r["COLUMN_NAME"], set()).add(r["QUALIFIED_OBJECT_NAME"])
+    multi_table_cols = {c for c, tbls in workspace_query_tables_by_col.items() if len(tbls) > 1}
+    assert len(multi_table_cols) >= 2, "need >= 2 columns spanning multiple tables in workspace_query.csv"
+    multi_product_cols = {
+        c for c, tbls in workspace_query_tables_by_col.items()
+        if len({t.split(".")[0] for t in tbls}) > 1
+    }
+    assert len(multi_product_cols) >= 1, "need >= 1 column spanning multiple data products in workspace_query.csv"
+    assert 0 < len(workspace_curated_df) < len(distinct_cols), (
+        "workspace_curated.csv must cover some but not all columns"
+    )
+
     structure_path = os.path.join(HERE, "structure.csv")
     descriptions_path = os.path.join(HERE, "descriptions.csv")
     usage_path = os.path.join(HERE, "usage.csv")
     assignments_path = os.path.join(HERE, "assignments.csv")
+    workspace_query_path = os.path.join(HERE, "workspace_query.csv")
+    workspace_curated_path = os.path.join(HERE, "workspace_curated.csv")
 
     structure_df.to_csv(structure_path, index=False)
     descriptions_df.to_csv(descriptions_path, index=False)
     usage_df.to_csv(usage_path, index=False)
     assignments_df.to_csv(assignments_path, index=False)
+    workspace_query_df.to_csv(workspace_query_path, index=False)
+    workspace_curated_df.to_csv(workspace_curated_path, index=False)
 
     print(f"Wrote {structure_path} ({len(structure_df)} rows, "
           f"{n_dbs} databases, {n_schemas} schemas, {n_tables} tables, "
@@ -395,6 +468,11 @@ def main():
     print(f"Wrote {assignments_path} ({len(assignments_df)} rows, "
           f"{approved_pct:.0f}% approved, {len(OMITTED_FROM_ASSIGNMENTS)} columns "
           f"omitted for live auto-seed demo)")
+    print(f"Wrote {workspace_query_path} ({len(workspace_query_df)} rows, "
+          f"{len(multi_table_cols)} columns spanning multiple tables, "
+          f"{len(multi_product_cols)} spanning multiple data products)")
+    print(f"Wrote {workspace_curated_path} ({len(workspace_curated_df)} curated "
+          f"columns of {len(distinct_cols)} distinct)")
 
 
 if __name__ == "__main__":

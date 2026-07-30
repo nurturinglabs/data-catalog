@@ -2,21 +2,27 @@
 views/workspace.py — the Documentation workspace: the authoring/write side
 of the descriptions the Catalog page reads. A coordinator assigns columns to
 people; people fill in and submit descriptions; the coordinator approves.
-Approved rows are the *same* table data.py reads descriptions from (see
-config.DESCRIPTIONS_SOURCE == "workflow_table") — there is no separate
-store, so an approval here shows up on the Catalog page immediately
-(workflow.save_rows clears data's cache).
 
-Depends on workflow.py (read/write) and data.py (live structure, for table
-context) + config. Never reference a concrete data source, path, table
-name, or credential here — that lives in config.py.
+The grid joins two config-driven sources (see config.py's Layer 5) via
+workflow.load_workflow(): Source 1, a live structure+description query
+(data_product/schema/N tables/"Description (live)", read-only), and
+Source 2, an independently curated descriptions/approval feed
+("Description (curated)", the editable field — saved via
+workflow.save_curated_description). Assigned to/Status stay the workflow
+table's own (Layer 4) — Source 2's approved flag only feeds the *displayed*
+Status, it doesn't replace it. This is a separate store from
+config.DESCRIPTIONS_SOURCE (still "workflow_table", still feeding the
+Catalog page) — the two don't currently share data.
+
+Depends on workflow.py (all reads/writes) + config. Never reference a
+concrete data source, path, table name, or credential here — that lives in
+config.py.
 """
 
 import pandas as pd
 import streamlit as st
 
 import config
-import data
 import theme
 import workflow
 
@@ -193,15 +199,29 @@ def render() -> None:
             + (" · orphaned" if r["orphaned"] else ""),
             axis=1,
         )
+        # Schema rides along as a compact suffix on Data product rather than
+        # a literal second line — data_editor cells are plain text, no
+        # sublines — since N tables/data product are both schema-derived
+        # from the same query (Source 1) now.
+        display["Data product"] = display.apply(
+            lambda r: r["data_product"] + (f" · {r['schema']}" if r["schema"] else ""),
+            axis=1,
+        )
         display = display.rename(columns={
-            "table_count": "N tables", "data_product": "Data product",
-            "assigned_to": "Assigned to", "status": "Status", "description": "Description",
+            "table_count": "N tables", "assigned_to": "Assigned to", "status": "Status",
+            "description_curated": "Description (curated)", "description_live": "Description (live)",
         })
-        display_cols = ["Select", "Column", "N tables", "Data product", "Assigned to", "Status", "Description"]
+        display_cols = [
+            "Select", "Column", "Data product", "N tables", "Assigned to", "Status",
+            "Description (curated)", "Description (live)",
+        ]
 
-        # The grid and the bulk-action bar are wrapped in one bordered card
-        # (.st-key-coordinator-dock) so the actions read as attached to the
-        # rows they operate on, instead of stranded at the page bottom.
+        # The grid lives in a bordered card (.st-key-coordinator-dock); the
+        # bulk-action bar right after it is pinned to the bottom of the
+        # viewport via CSS (position:fixed — see theme.py) so Assign/
+        # Approve/Save stay reachable no matter how far down a long grid
+        # the coordinator has scrolled, instead of stranded at the very
+        # bottom of the page.
         dock = theme.safe_container(key="coordinator-dock")
         with dock:
             edited = st.data_editor(
@@ -210,9 +230,14 @@ def render() -> None:
                 use_container_width=True,
                 height=420,
                 key="coordinator_grid",
-                disabled=["Column", "N tables", "Data product", "Status"],
+                # "Description (live)" is read-only by design — Source 1's
+                # own value, shown for reference only.
+                disabled=["Column", "Data product", "N tables", "Status", "Description (live)"],
                 column_config={
-                    "Description": st.column_config.TextColumn(width="large"),
+                    "Description (curated)": st.column_config.TextColumn(width="large"),
+                    "Description (live)": st.column_config.TextColumn(
+                        width="large", help="Read-only — the live structure query's own description.",
+                    ),
                     "Assigned to": st.column_config.SelectboxColumn(
                         options=[""] + list(config.WORKFLOW_ASSIGNEES),
                     ),
@@ -278,42 +303,63 @@ def render() -> None:
                             st.error(f"{exc} Reload to see the latest version before retrying.")
             with save_col:
                 if st.button("💾 Save edits", key="coord_save_desc_btn", use_container_width=True):
-                    orig_desc = filtered["description"].astype(str).to_numpy()
-                    new_desc = edited["Description"].astype(str).to_numpy()
-                    desc_changed = orig_desc != new_desc
+                    # Curated description edits and assignment edits now go
+                    # to two different stores: Description (curated) is
+                    # Source 2 (an independent curated feed, no updated_at
+                    # of its own to conflict-check against — see
+                    # save_curated_description); Assigned to stays exactly
+                    # as before, in COLUMN_ASSIGNMENTS via save_rows, with
+                    # its existing optimistic-concurrency check.
+                    orig_curated = filtered["description_curated"].astype(str).to_numpy()
+                    new_curated = edited["Description (curated)"].astype(str).to_numpy()
+                    curated_changed = orig_curated != new_curated
 
                     orig_assignee = filtered["assigned_to"].astype(str).to_numpy()
                     new_assignee = edited["Assigned to"].astype(str).to_numpy()
                     assignee_changed = orig_assignee != new_assignee
 
-                    changed_mask = desc_changed | assignee_changed
-                    if not changed_mask.any():
+                    if not (curated_changed.any() or assignee_changed.any()):
                         st.info("No changes to save.")
                     else:
-                        edits = []
-                        for i in filtered.index[changed_mask]:
+                        for i in filtered.index[curated_changed]:
+                            workflow.save_curated_description(
+                                filtered.at[i, "column_name"], edited.at[i, "Description (curated)"],
+                            )
+
+                        assignee_edits = []
+                        for i in filtered.index[assignee_changed]:
+                            new_person = edited.at[i, "Assigned to"]
                             edit = {
                                 "column_name": filtered.at[i, "column_name"],
+                                "assigned_to": new_person,
                                 "_expected_updated_at": filtered.at[i, "updated_at"],
                             }
-                            if desc_changed[i]:
-                                edit["description"] = edited.at[i, "Description"]
-                            if assignee_changed[i]:
-                                new_person = edited.at[i, "Assigned to"]
-                                edit["assigned_to"] = new_person
-                                # Picking someone for a previously-Unassigned
-                                # row also claims it; reassigning a row
-                                # already in progress leaves its status
-                                # alone (not a fresh assignment).
-                                if filtered.at[i, "status"] == "Unassigned" and new_person:
-                                    edit["status"] = "Assigned"
-                            edits.append(edit)
+                            # Picking someone for a previously-Unassigned
+                            # row also claims it; reassigning a row already
+                            # in progress leaves its status alone (not a
+                            # fresh assignment).
+                            if filtered.at[i, "status"] == "Unassigned" and new_person:
+                                edit["status"] = "Assigned"
+                            assignee_edits.append(edit)
+
                         try:
-                            workflow.save_rows(edits, actor=actor)
-                            st.toast(f"Saved {len(edits)} change(s).", icon="✅")
+                            if assignee_edits:
+                                workflow.save_rows(assignee_edits, actor=actor)
+                            parts = []
+                            if curated_changed.any():
+                                parts.append(f"{int(curated_changed.sum())} description edit(s)")
+                            if assignee_edits:
+                                parts.append(f"{len(assignee_edits)} assignment(s)")
+                            st.toast(f"Saved {', '.join(parts)}.", icon="✅")
                             st.rerun()
                         except workflow.WorkflowConflictError as exc:
                             st.error(f"{exc} Reload to see the latest version before retrying.")
+
+        # The action bar above is position:fixed to the viewport bottom, so
+        # it no longer occupies flow space of its own — without this, its
+        # ~70px would sit on top of whatever the page's actual last content
+        # happens to be.
+        st.markdown('<div style="height: 76px"></div>', unsafe_allow_html=True)
 
 
     # ─────────────────────────────────────────────────────────────────────────────
@@ -332,30 +378,29 @@ def render() -> None:
 
         st.caption(f"{len(my_open)} column{'s' if len(my_open) != 1 else ''} open")
 
-        catalog_df = data.load_catalog()
-        tables_by_col = {row["column_name"]: row["tables"] for _, row in catalog_df.iterrows()}
-
         for _, row in my_open.iterrows():
             col = row["column_name"]
-            tables = tables_by_col.get(col, [])
+            tables = row["tables"]  # Source 1, already resolved per-row by load_workflow()
             label = f"{col} — {row['data_product']} ({len(tables)} table{'s' if len(tables) != 1 else ''})"
             with st.expander(label):
                 if tables:
                     st.caption("Appears in: " + ", ".join(tables))
                 elif row["origin"] == "manual":
                     st.caption("Manual / glossary entry — no physical table.")
+                if row["description_live"]:
+                    st.caption(f"Live (from structure query): {row['description_live']}")
 
                 draft_key = f"assignee_draft_{col}"
-                st.session_state.setdefault(draft_key, row["description"])
+                st.session_state.setdefault(draft_key, row["description_curated"])
                 st.text_area("Description", key=draft_key, height=100, label_visibility="collapsed")
 
                 c1, c2 = st.columns(2)
                 with c1:
                     if st.button("Save draft", key=f"save_draft_{col}", use_container_width=True):
                         try:
+                            workflow.save_curated_description(col, st.session_state[draft_key])
                             workflow.save_rows([{
                                 "column_name": col,
-                                "description": st.session_state[draft_key],
                                 "status": "In progress",
                                 "_expected_updated_at": row["updated_at"],
                             }], actor=actor)
@@ -369,9 +414,9 @@ def render() -> None:
                             st.warning("Write a description before submitting.")
                         else:
                             try:
+                                workflow.save_curated_description(col, st.session_state[draft_key])
                                 workflow.save_rows([{
                                     "column_name": col,
-                                    "description": st.session_state[draft_key],
                                     "status": "Submitted",
                                     "_expected_updated_at": row["updated_at"],
                                 }], actor=actor)

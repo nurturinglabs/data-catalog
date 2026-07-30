@@ -453,14 +453,17 @@ def inject_css() -> None:
     .status-pill-submitted  {{ background: #FFF3D6; color: #8A5A00; }}
     .status-pill-approved   {{ background: #E6F7EC; color: #1E7A3D; }}
 
-    /* ── Docked table + action bar (Documentation workspace coordinator
-       grid) — the data_editor and the bulk-action row underneath it are
-       wrapped in one bordered card (.st-key-coordinator-dock) so the
-       actions read as attached to the rows they operate on, not stranded
-       at the page bottom. The editor's own corners/border are flattened
-       (the wrapping card supplies the outer rounding) and the default gap
-       Streamlit puts between stacked blocks is zeroed out inside the dock
-       so the two pieces sit flush. ── */
+    /* ── Docked table (Documentation workspace coordinator grid) — the
+       editor's own corners/border are flattened (the wrapping card
+       supplies the outer rounding) and the default gap Streamlit puts
+       between stacked blocks is zeroed out inside the dock. The action
+       bar used to live inside this same card, flush against the grid's
+       bottom edge; it's now position:fixed (see .st-key-coordinator-
+       action-bar below) so it stays reachable regardless of table
+       scroll — that necessarily detaches it from being physically flush
+       against the grid's bottom border (a fixed element can't share a
+       box with content that scrolls independently underneath it), so the
+       dock card now just wraps the grid alone. ── */
     .st-key-coordinator-dock {{
         border: 1px solid #E2E8F0; border-radius: 10px; overflow: hidden;
         box-shadow: 0 1px 4px rgba(15,23,42,0.06);
@@ -469,8 +472,28 @@ def inject_css() -> None:
     .st-key-coordinator-dock div[data-testid="stDataFrame"] {{
         border: none !important; border-radius: 0 !important;
     }}
+
+    /* ── Sticky bulk-action bar — pinned to the bottom of the viewport
+       (not the table) so Assign/Approve/Save stay reachable no matter how
+       far the coordinator has scrolled down a long grid. left/right match
+       .block-container's own 2.25rem side padding (this app has no
+       sidebar to complicate that math) so its edges still line up with
+       the table above it, even though it's no longer physically part of
+       the same card. views/workspace.py adds a bottom spacer after the
+       dock so this bar never overlaps the grid's last rows/controls.
+
+       NOTE: position:fixed has been unreliable in this environment before
+       (three earlier, never-fully-diagnosed failures trying to fix a
+       sidebar toggle, a floating search box, and a fixed header — see
+       git history) — but those all fought Streamlit's own native chrome
+       (header/sidebar). This is a fixed element over plain page content,
+       a much more commonly-solved case, so it's a reasonable attempt; it
+       still needs real-browser confirmation, which isn't available here. ── */
     .st-key-coordinator-action-bar {{
-        background: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 12px 16px !important;
+        position: fixed !important; bottom: 0 !important; left: 2.25rem !important; right: 2.25rem !important;
+        z-index: 999 !important; background: #F8FAFC !important; border-top: 1px solid #E2E8F0 !important;
+        border-radius: 10px 10px 0 0 !important; box-shadow: 0 -2px 10px rgba(15,23,42,0.10) !important;
+        padding: 14px 16px !important;
     }}
 
     /* Misc widget polish */
