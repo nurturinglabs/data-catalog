@@ -20,6 +20,13 @@ import data
 import theme
 import workflow
 
+# Columns used in only one table are excluded (mirrors the same business
+# rule catalog.py applies) — not interesting for documentation effort
+# focused on shared/reused columns across the warehouse. Manual/glossary
+# rows (no physical table by design) and orphaned rows (kept for cleanup
+# review regardless of their now-stale table_count) are exempt.
+MIN_TABLE_COUNT = 2
+
 
 def render() -> None:
     theme.header(nav_items=theme.NAV_ITEMS)
@@ -34,8 +41,24 @@ def render() -> None:
 
     st.session_state.setdefault("workspace_role", "Coordinator")
     workflow_df = workflow.load_workflow()
+    workflow_df = workflow_df[
+        (workflow_df["origin"] == "manual")
+        | workflow_df["orphaned"]
+        | (workflow_df["table_count"] >= MIN_TABLE_COUNT)
+    ].reset_index(drop=True)
 
-    role_col, identity_col, progress_col = st.columns([2.2, 2.6, 3.4])
+    # role_col/identity_col are kept tight (not proportionally generous)
+    # so the pills and the picker sit close together, reading as one
+    # control line — a wide column here just leaves dead space between
+    # them, since neither the pills (which size to their own text) nor a
+    # narrower selectbox column stretch to fill unclaimed room the way the
+    # eye expects. progress_col absorbs the freed-up width; its own text
+    # is right-aligned within it, so extra room there is harmless.
+    # role_col is a bit wider than the absolute minimum as a safety
+    # margin — the role pills' own CSS (role-toggle-scope) also carries a
+    # 120px min-width per button regardless, so "Coordinator" can't wrap
+    # even if this column ends up narrower on a smaller viewport.
+    role_col, identity_col, progress_col = st.columns([2.0, 1.8, 4.4])
     with role_col:
         def _pick_role(value: str) -> None:
             st.session_state["workspace_role"] = value
@@ -43,6 +66,7 @@ def render() -> None:
         theme.pill_row(
             "workspace_role_tab", ["Coordinator", "Assignee"],
             st.session_state["workspace_role"], _pick_role,
+            scope="role-toggle-scope",
         )
     with identity_col:
         if not workflow.is_sis():
@@ -186,8 +210,13 @@ def render() -> None:
                 use_container_width=True,
                 height=420,
                 key="coordinator_grid",
-                disabled=["Column", "N tables", "Data product", "Assigned to", "Status"],
-                column_config={"Description": st.column_config.TextColumn(width="large")},
+                disabled=["Column", "N tables", "Data product", "Status"],
+                column_config={
+                    "Description": st.column_config.TextColumn(width="large"),
+                    "Assigned to": st.column_config.SelectboxColumn(
+                        options=[""] + list(config.WORKFLOW_ASSIGNEES),
+                    ),
+                },
             )
 
             selected_mask = edited["Select"].to_numpy()
@@ -251,21 +280,37 @@ def render() -> None:
                 if st.button("💾 Save edits", key="coord_save_desc_btn", use_container_width=True):
                     orig_desc = filtered["description"].astype(str).to_numpy()
                     new_desc = edited["Description"].astype(str).to_numpy()
-                    changed_mask = orig_desc != new_desc
+                    desc_changed = orig_desc != new_desc
+
+                    orig_assignee = filtered["assigned_to"].astype(str).to_numpy()
+                    new_assignee = edited["Assigned to"].astype(str).to_numpy()
+                    assignee_changed = orig_assignee != new_assignee
+
+                    changed_mask = desc_changed | assignee_changed
                     if not changed_mask.any():
-                        st.info("No description changes to save.")
+                        st.info("No changes to save.")
                     else:
-                        edits = [
-                            {"column_name": n, "description": d, "_expected_updated_at": u}
-                            for n, d, u in zip(
-                                filtered.loc[changed_mask, "column_name"],
-                                edited.loc[changed_mask, "Description"],
-                                filtered.loc[changed_mask, "updated_at"],
-                            )
-                        ]
+                        edits = []
+                        for i in filtered.index[changed_mask]:
+                            edit = {
+                                "column_name": filtered.at[i, "column_name"],
+                                "_expected_updated_at": filtered.at[i, "updated_at"],
+                            }
+                            if desc_changed[i]:
+                                edit["description"] = edited.at[i, "Description"]
+                            if assignee_changed[i]:
+                                new_person = edited.at[i, "Assigned to"]
+                                edit["assigned_to"] = new_person
+                                # Picking someone for a previously-Unassigned
+                                # row also claims it; reassigning a row
+                                # already in progress leaves its status
+                                # alone (not a fresh assignment).
+                                if filtered.at[i, "status"] == "Unassigned" and new_person:
+                                    edit["status"] = "Assigned"
+                            edits.append(edit)
                         try:
                             workflow.save_rows(edits, actor=actor)
-                            st.toast(f"Saved {len(edits)} description edit(s).", icon="✅")
+                            st.toast(f"Saved {len(edits)} change(s).", icon="✅")
                             st.rerun()
                         except workflow.WorkflowConflictError as exc:
                             st.error(f"{exc} Reload to see the latest version before retrying.")

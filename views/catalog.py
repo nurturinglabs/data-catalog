@@ -156,9 +156,9 @@ def render() -> None:
         busiest_value = "—"
 
     theme.kpi_row([
-        {"label": "Number of Columns", "value": f"{view_count}", "icon": "📊", "accent": "primary"},
-        {"label": "Columns with Descriptions", "value": f"{documented_count}", "icon": "📝", "accent": "primary"},
-        {"label": "Column used in most tables", "value": busiest_value, "icon": "🔗", "accent": "yellow"},
+        {"label": "Number of Columns", "value": f"{view_count}", "icon": theme.ICON_COLUMNS, "accent": "primary"},
+        {"label": "Columns with Descriptions", "value": f"{documented_count}", "icon": theme.ICON_DESCRIPTION, "accent": "primary"},
+        {"label": "Column used in most tables", "value": busiest_value, "icon": theme.ICON_LINK, "accent": "yellow"},
     ])
 
     st.write("")
@@ -167,7 +167,7 @@ def render() -> None:
     with results_col:
         st.caption(f"{scope_label} — {view_count} column{'s' if view_count != 1 else ''}")
         st.text_input(
-            "Search", placeholder="🔍 Search columns or descriptions",
+            "Search", placeholder="Search columns or descriptions",
             label_visibility="collapsed", key="search_text",
         )
 

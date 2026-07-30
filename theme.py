@@ -207,16 +207,37 @@ def inject_css() -> None:
     /* ── Page nav menu, inline in the header (Catalog / Documentation
        workspace) — flat text tabs, not buttons: no fill, no border, no
        shadow, no rounded box. Inactive is muted light-blue; active is
-       white with only a 2px gold underline marking it — the whole point of
-       this pass was to get away from the "raised toolbar button" look a
-       filled/bordered/shadowed pill gave the old version. ── */
+       white with only a 2px gold underline marking it.
+
+       The underline is a border-bottom on the <button> element itself, so
+       it is EXACTLY as wide as the button's own box — which is why the
+       button must NOT be stretched (use_container_width=False, set in
+       header() below) to fill an oversized, imprecisely-guessed column.
+       An earlier version used True specifically so the button (and its
+       trailing dead space) would visually reach the right edge — but that
+       made the underline span the button's whole stretched box instead of
+       just the text, which is exactly the "misaligned, too wide" underline
+       this was rewritten to fix. With a content-sized button, the
+       underline automatically tracks the label width, and the ~16px gap
+       between the two tabs comes from st.columns()'s own native gap="small"
+       (see header()) rather than from precise column-ratio math — a fixed,
+       reliable value regardless of how good the character-count width
+       guess turns out to be. ── */
     .st-key-header-nav div[data-testid="stButton"] {{
-        display: flex !important; align-items: center !important;
+        /* flex-start (explicit, not just the default) so each
+           content-sized button sits at the START of its own column —
+           i.e. immediately after the previous tab (or the leading
+           spacer) — rather than drifting toward that column's own far
+           edge. This is what actually clusters the two tabs together:
+           any leftover width from an imprecise column-size guess ends up
+           as slack AFTER "Documentation workspace" (harmless), never
+           BETWEEN the two tabs. */
+        display: flex !important; align-items: center !important; justify-content: flex-start !important;
     }}
     .st-key-header-nav div[data-testid="stButton"] button {{
         background: transparent !important; border: none !important; box-shadow: none !important;
         border-radius: 0 !important; font-size: 14px !important; font-weight: 600 !important;
-        padding: 4px 0 !important; margin: 0 12px !important; white-space: nowrap !important;
+        padding: 4px 0 !important; margin: 0 !important; white-space: nowrap !important;
         border-bottom: 2px solid transparent !important;
         transition: color .12s, border-color .12s;
     }}
@@ -269,7 +290,13 @@ def inject_css() -> None:
     }}
     .kpi-card.accent-primary::before {{ background: {primary}; }}
     .kpi-card.accent-yellow::before {{ background: {accent}; }}
-    .kpi-icon {{ font-size: 17px; display: block; margin-bottom: 8px; line-height: 1; }}
+    /* Single-color line icon (SVG, stroke=currentColor — see
+       theme.ICON_COLUMNS/ICON_DESCRIPTION/ICON_LINK), not emoji; tinted to
+       match its card's own accent color rather than a fixed neutral. */
+    .kpi-icon {{ display: block; margin-bottom: 8px; line-height: 1; }}
+    .kpi-icon svg {{ width: 18px; height: 18px; display: block; }}
+    .kpi-card.accent-primary .kpi-icon {{ color: {primary}; }}
+    .kpi-card.accent-yellow .kpi-icon {{ color: {accent}; }}
     .kpi-label {{ font-size: 11px; color: #64748B; text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 6px; font-weight: 600; }}
     /* Sans, not mono: a standalone hero-style number reads better in the
        font's default proportional figures — tabular/mono spacing is for
@@ -294,23 +321,62 @@ def inject_css() -> None:
         background: #E6F1FB !important; color: {primary} !important; font-weight: 600 !important;
     }}
 
-    /* ── Tag pills ────────────────────────────────────────────────────── */
+    /* ── Tag pills (Catalog product/schema/table filters) — flat, matching
+       the modernized header: no drop-shadow, no heavy border. Inactive is
+       a thin hairline outline with muted text; active is a solid navy
+       fill; a subtle background tint on hover, nothing raised/boxed. ── */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .tags-scope) div[data-testid="stButton"] button {{
-        border-radius: 999px !important; padding: 0 16px !important; font-size: 12.5px !important;
+        border-radius: 999px !important; padding: 0 18px !important; font-size: 12.5px !important;
         font-weight: 600 !important; height: 34px !important; min-height: 34px !important;
         white-space: nowrap !important; display: flex !important; align-items: center !important;
-        justify-content: center !important;
+        justify-content: center !important; box-shadow: none !important;
+        transition: background-color .12s, border-color .12s, color .12s;
     }}
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .tags-scope) div[data-testid="stButton"] {{
         display: flex !important; align-items: flex-end !important;
     }}
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .tags-scope) div[data-testid="stButton"] button[data-testid="stBaseButton-secondary"] {{
-        background: #fff !important; color: {primary} !important; border: 1px solid #CBD5E1 !important;
+        background: transparent !important; color: #64748B !important; border: 1px solid #D8DEE8 !important;
+        box-shadow: none !important;
     }}
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .tags-scope) div[data-testid="stButton"] button[data-testid="stBaseButton-secondary"]:hover {{
-        border-color: {primary} !important;
+        border-color: {primary} !important; background: #F8FAFC !important; color: {primary} !important;
     }}
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .tags-scope) div[data-testid="stButton"] button[data-testid="stBaseButton-primary"] {{
+        background: {primary} !important; color: #fff !important; border: 1px solid {primary} !important;
+        box-shadow: none !important;
+    }}
+
+    /* ── Role toggle (Documentation workspace: Coordinator / Assignee) ──
+       Its own scope, not tags-scope: those pills get their width from a
+       computed column ratio that can end up narrower than "Coordinator"
+       needs (that's exactly what caused it to wrap to "Coor/dinat/or"
+       after the control-line columns were tightened), so this one carries
+       an explicit min-width instead of depending on column math, and
+       redundant nowrap/word-break rules so a single long word is never
+       broken even under a squeeze. Same segmented look as the tags-scope
+       pills otherwise: 34px tall, rounded, navy-filled active / outlined
+       inactive, small gap between them. ── */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .role-toggle-scope) div[data-testid="stButton"] button {{
+        border-radius: 999px !important; padding: 0 20px !important; font-size: 13px !important;
+        font-weight: 600 !important; height: 34px !important; min-height: 34px !important;
+        min-width: 120px !important; white-space: nowrap !important; overflow-wrap: normal !important;
+        word-break: keep-all !important; display: flex !important; align-items: center !important;
+        justify-content: center !important;
+    }}
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .role-toggle-scope) div[data-testid="stButton"] {{
+        display: flex !important; align-items: flex-end !important;
+    }}
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .role-toggle-scope) div[data-testid="stHorizontalBlock"] {{
+        gap: 8px !important;
+    }}
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .role-toggle-scope) div[data-testid="stButton"] button[data-testid="stBaseButton-secondary"] {{
+        background: #fff !important; color: {primary} !important; border: 1px solid #CBD5E1 !important;
+    }}
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .role-toggle-scope) div[data-testid="stButton"] button[data-testid="stBaseButton-secondary"]:hover {{
+        border-color: {primary} !important;
+    }}
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .role-toggle-scope) div[data-testid="stButton"] button[data-testid="stBaseButton-primary"] {{
         background: {primary} !important; color: #fff !important; border: 1px solid {primary} !important;
     }}
 
@@ -422,6 +488,37 @@ _BOOK_ICON_SVG = (
     '</svg>'
 )
 
+# KPI card icons — same single-color line-icon convention as the header's
+# book icon (24x24 viewBox, 2px stroke, rounded caps/joins), not emoji.
+# Exported (not "_"-prefixed) since views/catalog.py passes these directly
+# as kpi_row()'s "icon" values.
+ICON_COLUMNS = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<line x1="18" y1="20" x2="18" y2="10"></line>'
+    '<line x1="12" y1="20" x2="12" y2="4"></line>'
+    '<line x1="6" y1="20" x2="6" y2="14"></line>'
+    '</svg>'
+)
+
+ICON_DESCRIPTION = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>'
+    '<polyline points="14 2 14 8 20 8"></polyline>'
+    '<line x1="16" y1="13" x2="8" y2="13"></line>'
+    '<line x1="16" y1="17" x2="8" y2="17"></line>'
+    '</svg>'
+)
+
+ICON_LINK = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>'
+    '<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>'
+    '</svg>'
+)
+
 
 def _logo_html() -> str:
     """Render config.HEADER_LOGO_PATH as an inline base64 <img>, so it works
@@ -477,12 +574,17 @@ def header(nav_items: list[str] | None = None) -> None:
                 active = st.session_state.get("active_view", nav_items[0])
                 nav_container = safe_container(key="header-nav")
                 with nav_container:
-                    widths = [len(v) + 4 for v in nav_items]
-                    # A leading spacer (not trailing) pushes the items to the
-                    # right edge of nav_col — i.e. the right edge of the
-                    # header itself. Per-button CSS margin (not column gap)
-                    # controls the ~24px space between the two tabs.
-                    cols = safe_columns([max(sum(widths), 1)] + widths, gap=None)
+                    # A leading spacer pushes the pair to the right side of
+                    # nav_col. use_container_width=False (not True) is the
+                    # key fix here: each button stays exactly as wide as
+                    # its own label, so its border-bottom underline (the
+                    # active-state indicator) hugs the text instead of
+                    # spanning a stretched, guessed-width column. gap=
+                    # "small" gives the two tabs a fixed, reliable ~16px
+                    # separation regardless of that guess's precision —
+                    # native column spacing, not CSS margin math.
+                    widths = [len(v) + 2 for v in nav_items]
+                    cols = safe_columns([max(sum(widths), 1)] + widths, gap="small")
                     for col, label in zip(cols[1:], nav_items):
                         with col:
                             if toggle_button(
@@ -496,14 +598,15 @@ def header(nav_items: list[str] | None = None) -> None:
 
 
 def kpi_row(metrics: list[dict]) -> None:
-    """Each metric dict: {"label": str, "value": str, "icon": str (optional),
-    "accent": "primary"|"yellow" (optional — defaults to alternating by
-    position if omitted)}."""
+    """Each metric dict: {"label": str, "value": str, "icon": str (optional,
+    trusted inline SVG markup — e.g. theme.ICON_COLUMNS — not emoji or
+    user-supplied text; rendered unescaped), "accent": "primary"|"yellow"
+    (optional — defaults to alternating by position if omitted)}."""
     cols = st.columns(len(metrics))
     for i, (col, m) in enumerate(zip(cols, metrics)):
         accent = m.get("accent") or ("primary" if i % 2 == 0 else "yellow")
         accent_cls = f"accent-{accent}"
-        icon_html = f'<span class="kpi-icon">{html.escape(m["icon"])}</span>' if m.get("icon") else ""
+        icon_html = f'<span class="kpi-icon">{m["icon"]}</span>' if m.get("icon") else ""
         with col:
             st.markdown(f"""
             <div class="kpi-card {accent_cls}">
