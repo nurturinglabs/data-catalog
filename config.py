@@ -287,7 +287,7 @@ ACCENT_COLOR = "#FFB500"
 
 # Optional path to a local logo image (png/svg/jpg) shown top-left of the
 # header, in place of HEADER_ICON. Leave "" to use HEADER_ICON instead.
-HEADER_LOGO_PATH = ""
+HEADER_LOGO_PATH = "icon.jpeg"
 HEADER_ICON = "📚"
 
 # ═══════════════════════════════════════════════════════════════════════════

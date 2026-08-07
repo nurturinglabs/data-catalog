@@ -197,12 +197,24 @@ def inject_css() -> None:
     .st-key-header-band div[data-testid="stHorizontalBlock"] {{
         display: flex !important; align-items: center !important; width: 100% !important;
     }}
-    .header-brand {{ display: flex; align-items: center; gap: 10px; }}
+    .header-brand {{ display: flex; align-items: center; gap: 14px; }}
+    /* Icon box — a slightly-lighter navy square behind the mark so it reads
+       as a distinct badge against the header band rather than blending
+       into it, matching the reference header this was restyled after. */
+    .header-icon-box {{
+        display: flex; align-items: center; justify-content: center;
+        width: 54px; height: 54px; border-radius: 10px; flex-shrink: 0;
+        background: rgba(255,255,255,0.08);
+    }}
     .header-icon {{ display: flex; align-items: center; color: {accent}; }}
-    .header-icon svg {{ width: 20px; height: 20px; display: block; }}
-    .header-logo {{ height: 28px; width: auto; max-width: 140px; object-fit: contain; }}
-    .header-title {{ color: #fff; font-weight: 700; font-size: 19px; }}
-    .header-tagline {{ color: #9DBBD9; font-size: 13.5px; margin-left: 4px; }}
+    .header-icon svg {{ width: 30px; height: 30px; display: block; }}
+    .header-logo {{ height: 40px; width: 40px; object-fit: contain; display: block; }}
+    /* Gold divider bar between the icon badge and the title/tagline block —
+       the reference header's signature detail. */
+    .header-divider {{ width: 3px; height: 48px; background: {accent}; border-radius: 2px; flex-shrink: 0; }}
+    .header-text {{ display: flex; flex-direction: column; justify-content: center; gap: 1px; }}
+    .header-title {{ color: {accent}; font-weight: 800; font-size: 23px; line-height: 1.2; }}
+    .header-tagline {{ color: #B9C6D6; font-size: 13.5px; font-weight: 400; line-height: 1.3; }}
 
     /* ── Page nav menu, inline in the header (Catalog / Documentation
        workspace) — flat text tabs, not buttons: no fill, no border, no
@@ -587,9 +599,12 @@ def header(nav_items: list[str] | None = None) -> None:
         with left:
             st.markdown(f"""
             <div class="header-brand">
-              {_logo_html()}
-              <span class="header-title">{html.escape(config.APP_TITLE)}</span>
-              <span class="header-tagline">· {html.escape(config.APP_SUBTITLE)}</span>
+              <span class="header-icon-box">{_logo_html()}</span>
+              <span class="header-divider"></span>
+              <div class="header-text">
+                <span class="header-title">{html.escape(config.APP_TITLE)}</span>
+                <span class="header-tagline">{html.escape(config.APP_SUBTITLE)}</span>
+              </div>
             </div>
             """, unsafe_allow_html=True)
         if nav_items:
